@@ -1,0 +1,83 @@
+# EditorConfig is awesome: https://EditorConfig.org
+
+# Top-most EditorConfig file
+root = true
+
+# Unix-style newlines with a newline ending every file
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# Kotlin files
+[*.{kt,kts}]
+indent_size = 4
+indent_style = space
+continuation_indent_size = 4
+max_line_length = 120
+
+# Java files
+[*.java]
+indent_size = 4
+indent_style = space
+max_line_length = 120
+
+# XML files
+[*.xml]
+indent_size = 4
+indent_style = space
+
+# Gradle files
+[*.gradle{,.kts}]
+indent_size = 4
+indent_style = space
+
+# TypeScript/JavaScript
+[*.{ts,tsx,js,jsx,mjs}]
+indent_size = 2
+indent_style = space
+max_line_length = 100
+
+# JSON files
+[*.json]
+indent_size = 2
+indent_style = space
+
+# YAML files
+[*.{yml,yaml}]
+indent_size = 2
+indent_style = space
+
+# Markdown files
+[*.md]
+indent_size = 2
+indent_style = space
+trim_trailing_whitespace = false
+max_line_length = off
+
+# Properties files
+[*.properties]
+indent_size = 4
+indent_style = space
+
+# Shell scripts
+[*.sh]
+indent_size = 2
+indent_style = space
+end_of_line = lf
+
+# Batch files
+[*.{bat,cmd}]
+indent_size = 2
+indent_style = space
+end_of_line = crlf
+
+# Makefile
+[Makefile]
+indent_style = tab
+
+# Package.json
+[package.json]
+indent_size = 2
+indent_style = space
