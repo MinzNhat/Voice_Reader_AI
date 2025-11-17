@@ -11,11 +11,33 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 
-private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
+// Speechify-inspired Dark Color Scheme
+private val SpeechifyDarkColorScheme = darkColorScheme(
+    primary = androidx.compose.ui.graphics.Color(0xFF4A9EFF),      // Speechify blue
+    onPrimary = androidx.compose.ui.graphics.Color.White,
+    primaryContainer = androidx.compose.ui.graphics.Color(0xFF3A7ED9),
+    onPrimaryContainer = androidx.compose.ui.graphics.Color.White,
+
+    secondary = androidx.compose.ui.graphics.Color(0xFF4A9EFF),
+    onSecondary = androidx.compose.ui.graphics.Color.White,
+
+    tertiary = androidx.compose.ui.graphics.Color(0xFF6B9FFF),
+    onTertiary = androidx.compose.ui.graphics.Color.White,
+
+    background = androidx.compose.ui.graphics.Color(0xFF0A0A0A),   // Deep black
+    onBackground = androidx.compose.ui.graphics.Color(0xFFFFFFFF),
+
+    surface = androidx.compose.ui.graphics.Color(0xFF1A1A1A),      // Dark surface
+    onSurface = androidx.compose.ui.graphics.Color(0xFFFFFFFF),
+
+    surfaceVariant = androidx.compose.ui.graphics.Color(0xFF2A2A2A),
+    onSurfaceVariant = androidx.compose.ui.graphics.Color(0xFFB0B0B0),
+
+    error = androidx.compose.ui.graphics.Color(0xFFFF4444),
+    onError = androidx.compose.ui.graphics.Color.White
 )
+
+private val DarkColorScheme = SpeechifyDarkColorScheme
 
 private val LightColorScheme = lightColorScheme(
     primary = Purple40,
@@ -35,20 +57,13 @@ private val LightColorScheme = lightColorScheme(
 
 @Composable
 fun VoiceReaderAppTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
+    darkTheme: Boolean = true,  // Always use dark theme (Speechify-style)
+    // Dynamic color disabled for consistent branding
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
-    }
+    // Always use Speechify dark theme
+    val colorScheme = SpeechifyDarkColorScheme
 
     MaterialTheme(
         colorScheme = colorScheme,

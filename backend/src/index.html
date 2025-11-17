@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Reader AI - API Test</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 { margin-bottom: 30px; color: #333; }
+        .section { background: white; padding: 20px; margin-bottom: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h2 { color: #0066cc; margin-bottom: 15px; font-size: 18px; }
+        input[type="file"], input[type="text"], input[type="number"], textarea { width: 100%; padding: 10px; margin: 5px 0; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
+        button { background: #0066cc; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; margin-top: 10px; }
+        button:hover { background: #0052a3; }
+        .result { margin-top: 15px; padding: 15px; background: #f8f9fa; border-radius: 4px; border-left: 4px solid #0066cc; }
+        .result pre { overflow-x: auto; font-size: 12px; }
+        .error { border-left-color: #dc3545; background: #f8d7da; }
+        .success { border-left-color: #28a745; background: #d4edda; }
+        audio { width: 100%; margin-top: 10px; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎙️ Voice Reader AI - API Test Panel</h1>
+
+        <div class="grid">
+            <!-- OCR Test -->
+            <div class="section">
+                <h2>📝 Test OCR</h2>
+                <input type="file" id="ocrFile" accept="image/*,application/pdf">
+                <button onclick="testOCR()">Run OCR</button>
+                <div id="ocrResult"></div>
+            </div>
+
+            <!-- OCR Crop Test -->
+            <div class="section">
+                <h2>✂️ Test OCR with Crop</h2>
+                <input type="file" id="cropFile" accept="image/*">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
+                    <input type="number" id="cropX" placeholder="X" value="0">
+                    <input type="number" id="cropY" placeholder="Y" value="0">
+                    <input type="number" id="cropWidth" placeholder="Width" value="100">
+                    <input type="number" id="cropHeight" placeholder="Height" value="100">
+                </div>
+                <button onclick="testCrop()">Run OCR Crop</button>
+                <div id="cropResult"></div>
+            </div>
+
+            <!-- TTS Test -->
+            <div class="section">
+                <h2>🔊 Test TTS</h2>
+                <textarea id="ttsText" rows="4" placeholder="Enter text to convert to speech...">Hello world, this is a test.</textarea>
+                <input type="text" id="ttsSpeaker" placeholder="Speaker (default: nara)" value="nara">
+                <button onclick="testTTS()">Generate Speech</button>
+                <div id="ttsResult"></div>
+            </div>
+
+            <!-- Timing Test -->
+            <div class="section">
+                <h2>⏱️ Test Timing</h2>
+                <textarea id="timingText" rows="4" placeholder="Enter text for timing calculation...">Hello world this is a test</textarea>
+                <button onclick="testTiming()">Calculate Timing</button>
+                <div id="timingResult"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:3000';
+
+        function showResult(elementId, data, isError = false) {
+            const element = document.getElementById(elementId);
+            element.className = 'result ' + (isError ? 'error' : 'success');
+            element.innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+        }
+
+        async function testOCR() {
+            const fileInput = document.getElementById('ocrFile');
+            if (!fileInput.files[0]) {
+                alert('Please select a file');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+
+            try {
+                const response = await fetch(`${API_BASE}/ocr`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                showResult('ocrResult', data, !response.ok);
+            } catch (error) {
+                showResult('ocrResult', { error: error.message }, true);
+            }
+        }
+
+        async function testCrop() {
+            const fileInput = document.getElementById('cropFile');
+            if (!fileInput.files[0]) {
+                alert('Please select a file');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            formData.append('x', document.getElementById('cropX').value);
+            formData.append('y', document.getElementById('cropY').value);
+            formData.append('width', document.getElementById('cropWidth').value);
+            formData.append('height', document.getElementById('cropHeight').value);
+
+            try {
+                const response = await fetch(`${API_BASE}/ocr/crop`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                showResult('cropResult', data, !response.ok);
+            } catch (error) {
+                showResult('cropResult', { error: error.message }, true);
+            }
+        }
+
+        async function testTTS() {
+            const text = document.getElementById('ttsText').value;
+            const speaker = document.getElementById('ttsSpeaker').value;
+
+            if (!text) {
+                alert('Please enter text');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/tts`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text, speaker })
+                });
+                const data = await response.json();
+
+                if (response.ok && data.audio) {
+                    const audioElement = document.createElement('audio');
+                    audioElement.controls = true;
+                    audioElement.src = 'data:audio/mp3;base64,' + data.audio;
+
+                    const resultDiv = document.getElementById('ttsResult');
+                    resultDiv.className = 'result success';
+                    resultDiv.innerHTML = '<p>✅ Audio generated successfully</p>';
+                    resultDiv.appendChild(audioElement);
+                } else {
+                    showResult('ttsResult', data, true);
+                }
+            } catch (error) {
+                showResult('ttsResult', { error: error.message }, true);
+            }
+        }
+
+        async function testTiming() {
+            const text = document.getElementById('timingText').value;
+
+            if (!text) {
+                alert('Please enter text');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/tts/timing`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text })
+                });
+                const data = await response.json();
+                showResult('timingResult', data, !response.ok);
+            } catch (error) {
+                showResult('timingResult', { error: error.message }, true);
+            }
+        }
+    </script>
+</body>
+</html>
