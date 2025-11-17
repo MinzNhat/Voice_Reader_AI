@@ -1,0 +1,117 @@
+# Git Attributes for Voice Reader AI
+
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Source code
+*.java text diff=java
+*.kt text diff=kotlin
+*.kts text diff=kotlin
+*.gradle text diff=gradle
+*.xml text
+*.json text
+*.yml text
+*.yaml text
+*.toml text
+*.properties text
+
+# TypeScript/JavaScript
+*.ts text
+*.tsx text
+*.js text
+*.jsx text
+*.mjs text
+
+# Documentation
+*.md text
+*.txt text
+*.adoc text
+*.tex text
+
+# Scripts
+*.sh text eol=lf
+*.bash text eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Configs
+.gitignore text
+.gitattributes text
+.editorconfig text
+.eslintrc text
+.prettierrc text
+
+# Graphics
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.svg text
+*.webp binary
+
+# Archives
+*.7z binary
+*.gz binary
+*.tar binary
+*.zip binary
+
+# Executables
+*.exe binary
+*.dll binary
+*.so binary
+*.dylib binary
+
+# Android specific
+*.apk binary
+*.aab binary
+*.dex binary
+
+# Fonts
+*.ttf binary
+*.otf binary
+*.woff binary
+*.woff2 binary
+*.eot binary
+
+# Video
+*.mp4 binary
+*.mov binary
+*.avi binary
+*.webm binary
+
+# Audio
+*.mp3 binary
+*.wav binary
+*.ogg binary
+*.flac binary
+
+# Documents
+*.pdf binary
+*.doc binary
+*.docx binary
+*.xls binary
+*.xlsx binary
+
+# Java/Kotlin specifics
+*.gradle linguist-language=Gradle
+*.kt linguist-language=Kotlin
+*.kts linguist-language=Kotlin
+
+# TypeScript
+*.ts linguist-language=TypeScript
+*.tsx linguist-language=TypeScript
+
+# Markdown
+*.md linguist-detectable
+
+# Exclude from language statistics
+*.json linguist-generated=false
+*.xml linguist-generated=false
+
+# Large files - use Git LFS if needed
+# Uncomment and configure if you plan to use Git LFS
+# *.apk filter=lfs diff=lfs merge=lfs -text
+# *.aab filter=lfs diff=lfs merge=lfs -text
+# *.mp4 filter=lfs diff=lfs merge=lfs -text
