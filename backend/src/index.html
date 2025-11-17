@@ -69,117 +69,103 @@
         </div>
     </div>
 
-    <script>
-        const API_BASE = 'http://localhost:3000';
+<script>
 
-        function showResult(elementId, data, isError = false) {
-            const element = document.getElementById(elementId);
-            element.className = 'result ' + (isError ? 'error' : 'success');
-            element.innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+    const API_BASE = "http://localhost:3000/api";
+
+    function showResult(elementId, data, isError = false) {
+        const element = document.getElementById(elementId);
+        element.className = 'result ' + (isError ? 'error' : 'success');
+        element.innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+    }
+
+    async function testOCR() {
+        const file = document.getElementById("ocrFile").files[0];
+        if (!file) return alert("Please select a file");
+
+        const formData = new FormData();
+        formData.append("image", file);  // FIX: must match multer.single("image")
+
+        try {
+            const res = await fetch(`${API_BASE}/ocr/extract`, {
+                method: "POST",
+                body: formData
+            });
+            const data = await res.json();
+            showResult("ocrResult", data, !res.ok);
+        } catch (e) {
+            showResult("ocrResult", { error: e.message }, true);
         }
+    }
 
-        async function testOCR() {
-            const fileInput = document.getElementById('ocrFile');
-            if (!fileInput.files[0]) {
-                alert('Please select a file');
-                return;
-            }
+    async function testCrop() {
+        const file = document.getElementById("cropFile").files[0];
+        if (!file) return alert("Please select a file");
 
-            const formData = new FormData();
-            formData.append('file', fileInput.files[0]);
+        const formData = new FormData();
+        formData.append("image", file);
+        formData.append("x", cropX.value);
+        formData.append("y", cropY.value);
+        formData.append("width", cropWidth.value);
+        formData.append("height", cropHeight.value);
 
-            try {
-                const response = await fetch(`${API_BASE}/ocr`, {
-                    method: 'POST',
-                    body: formData
-                });
-                const data = await response.json();
-                showResult('ocrResult', data, !response.ok);
-            } catch (error) {
-                showResult('ocrResult', { error: error.message }, true);
-            }
+        try {
+            const res = await fetch(`${API_BASE}/ocr/crop`, {
+                method: "POST",
+                body: formData
+            });
+            const data = await res.json();
+            showResult("cropResult", data, !res.ok);
+        } catch (e) {
+            showResult("cropResult", { error: e.message }, true);
         }
+    }
 
-        async function testCrop() {
-            const fileInput = document.getElementById('cropFile');
-            if (!fileInput.files[0]) {
-                alert('Please select a file');
-                return;
-            }
+    async function testTTS() {
+        const text = document.getElementById("ttsText").value;
+        const speaker = document.getElementById("ttsSpeaker").value;
 
-            const formData = new FormData();
-            formData.append('file', fileInput.files[0]);
-            formData.append('x', document.getElementById('cropX').value);
-            formData.append('y', document.getElementById('cropY').value);
-            formData.append('width', document.getElementById('cropWidth').value);
-            formData.append('height', document.getElementById('cropHeight').value);
+        try {
+            const res = await fetch(`${API_BASE}/tts/synthesize`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ text, speaker })
+            });
 
-            try {
-                const response = await fetch(`${API_BASE}/ocr/crop`, {
-                    method: 'POST',
-                    body: formData
-                });
-                const data = await response.json();
-                showResult('cropResult', data, !response.ok);
-            } catch (error) {
-                showResult('cropResult', { error: error.message }, true);
-            }
+            const json = await res.json();
+
+            if (res.ok && json.data?.audio) {
+                const audio = new Audio(`data:audio/mp3;base64,${json.data.audio}`);
+                audio.controls = true;
+
+                const div = document.getElementById("ttsResult");
+                div.className = "result success";
+                div.innerHTML = "<p>Audio generated:</p>";
+                div.appendChild(audio);
+            } else showResult("ttsResult", json, true);
+
+        } catch (e) { showResult("ttsResult", { error: e.message }, true); }
+    }
+
+    async function testTiming() {
+        const text = document.getElementById("timingText").value;
+
+        try {
+            const res = await fetch(`${API_BASE}/tts/timing`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ text })
+            });
+
+            const json = await res.json();
+            showResult("timingResult", json, !res.ok);
+
+        } catch (e) {
+            showResult("timingResult", { error: e.message }, true);
         }
+    }
 
-        async function testTTS() {
-            const text = document.getElementById('ttsText').value;
-            const speaker = document.getElementById('ttsSpeaker').value;
+</script>
 
-            if (!text) {
-                alert('Please enter text');
-                return;
-            }
-
-            try {
-                const response = await fetch(`${API_BASE}/tts`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text, speaker })
-                });
-                const data = await response.json();
-
-                if (response.ok && data.audio) {
-                    const audioElement = document.createElement('audio');
-                    audioElement.controls = true;
-                    audioElement.src = 'data:audio/mp3;base64,' + data.audio;
-
-                    const resultDiv = document.getElementById('ttsResult');
-                    resultDiv.className = 'result success';
-                    resultDiv.innerHTML = '<p>✅ Audio generated successfully</p>';
-                    resultDiv.appendChild(audioElement);
-                } else {
-                    showResult('ttsResult', data, true);
-                }
-            } catch (error) {
-                showResult('ttsResult', { error: error.message }, true);
-            }
-        }
-
-        async function testTiming() {
-            const text = document.getElementById('timingText').value;
-
-            if (!text) {
-                alert('Please enter text');
-                return;
-            }
-
-            try {
-                const response = await fetch(`${API_BASE}/tts/timing`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text })
-                });
-                const data = await response.json();
-                showResult('timingResult', data, !response.ok);
-            } catch (error) {
-                showResult('timingResult', { error: error.message }, true);
-            }
-        }
-    </script>
 </body>
 </html>

@@ -2,10 +2,33 @@ package com.example.voicereaderapp.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val Purple80 = Color(0xFFD0BCFF)
-val PurpleGrey80 = Color(0xFFCCC2DC)
-val Pink80 = Color(0xFFEFB8C8)
+// Light palette
+val PrimaryLight = Color(0xFF5B8DEF)
+val PrimaryContainerLight = Color(0xFFDCE7FF)
 
-val Purple40 = Color(0xFF6650a4)
-val PurpleGrey40 = Color(0xFF625b71)
-val Pink40 = Color(0xFF7D5260)
+val SecondaryLight = Color(0xFF737A8C)
+val SecondaryContainerLight = Color(0xFFEEF0F5)
+
+val BackgroundLight = Color(0xFFF5F8FF)
+val SurfaceLight = Color(0xFFDBE2FC)
+val SurfaceVariantLight = Color(0xFFE4E7ED)
+
+val OnPrimaryLight = Color(0xFFFFFFFF)
+val OnSurfaceLight = Color(0xFF1C1E21)
+val OnBackgroundLight = Color(0xFF2C2F33)
+
+
+// Dark palette
+val PrimaryDark = Color(0xFF8AB4FF)
+val PrimaryContainerDark = Color(0xFF1A2C48)
+
+val SecondaryDark = Color(0xFFA1A7B3)
+val SecondaryContainerDark = Color(0xFF30333A)
+
+val BackgroundDark = Color(0xFF121416)
+val SurfaceDark = Color(0xFF1A1C1E)
+val SurfaceVariantDark = Color(0xFF2A2D31)
+
+val OnPrimaryDark = Color(0xFF06131F)
+val OnSurfaceDark = Color(0xFFECEDEE)
+val OnBackgroundDark = Color(0xFFECEDEE)

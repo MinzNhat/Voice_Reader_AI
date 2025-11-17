@@ -16,6 +16,15 @@ app.get("/", (req, res) => {
     res.sendFile(path.join(__dirname, "index.html"));
 });
 
+// Health check endpoint
+app.get("/health", (req, res) => {
+    res.json({
+        success: true,
+        status: "ok",
+        timestamp: Date.now()
+    });
+});
+
 // Multer config
 const upload = multer({ dest: "uploads/" });
 
@@ -44,7 +53,6 @@ function normalizeOCRResponse(naverResponse) {
         const image = naverResponse.images[0];
 
         // CRITICAL: Capture the actual image dimensions NAVER used for OCR
-        // NAVER stores dimensions in different possible locations:
         imageWidth = image.width ||
                      image.inferResult?.width ||
                      image.convertedImageInfo?.width || 0;
@@ -72,7 +80,6 @@ function normalizeOCRResponse(naverResponse) {
         }
 
         console.log(`[OCR] NAVER processed image at: ${imageWidth}x${imageHeight}`);
-        console.log(`[OCR] convertedImageInfo:`, JSON.stringify(image.convertedImageInfo, null, 2));
 
         if (image.fields) {
             image.fields.forEach((field) => {
@@ -105,7 +112,6 @@ function normalizeOCRResponse(naverResponse) {
     return {
         text: fullText.trim(),
         words: words,
-        // CRITICAL: Return dimensions so Android can scale coordinates
         imageWidth: imageWidth,
         imageHeight: imageHeight
     };
@@ -113,7 +119,6 @@ function normalizeOCRResponse(naverResponse) {
 
 /**
  * Calculate approximate timing for TTS
- * Average speaking rate: ~150 words per minute = 2.5 words/sec = 400ms per word
  */
 function calculateTiming(text) {
     const words = text.split(/\s+/).filter(w => w.length > 0);
@@ -121,8 +126,6 @@ function calculateTiming(text) {
     let currentTime = 0;
 
     words.forEach((word, index) => {
-        // Estimate duration based on word length
-        // Base: 300ms + 50ms per character (approximate)
         const duration = 300 + (word.length * 50);
 
         timings.push({
@@ -152,28 +155,41 @@ function deleteFile(filePath) {
 }
 
 // ====================================================
-// ENDPOINT 1: POST /ocr
+// ENDPOINT 1: POST /api/ocr/extract
 // ====================================================
-app.post("/ocr", upload.single("file"), async (req, res) => {
+// Use upload.any() to accept both file and text fields (image + language)
+app.post("/api/ocr/extract", upload.any(), async (req, res) => {
     let filePath = null;
 
     try {
-        if (!req.file) {
-            return res.status(400).json({ error: "No file provided" });
+        console.log("📥 Received OCR request");
+        console.log("  Files received:", req.files?.length || 0);
+        console.log("  Body:", req.body);
+
+        // Get the image file (upload.any() puts files in req.files array)
+        const imageFile = req.files?.find(f => f.fieldname === "image");
+
+        if (!imageFile) {
+            return res.status(400).json({
+                success: false,
+                error: "No image file provided"
+            });
         }
 
-        filePath = req.file.path;
+        console.log("  File:", imageFile.originalname);
+        console.log("  Size:", imageFile.size, "bytes");
+        console.log("  Language:", req.body.language || "not specified");
+
+        filePath = imageFile.path;
         const imageBuffer = fs.readFileSync(filePath);
 
-        // Determine format from mimetype
         let format = "png";
-        if (req.file.mimetype === "application/pdf") {
+        if (imageFile.mimetype === "application/pdf") {
             format = "pdf";
-        } else if (req.file.mimetype.includes("jpeg") || req.file.mimetype.includes("jpg")) {
+        } else if (imageFile.mimetype.includes("jpeg") || imageFile.mimetype.includes("jpg")) {
             format = "jpg";
         }
 
-        // Call NAVER CLOVA OCR API
         const ocrResponse = await axios.post(
             process.env.NAVER_OCR_URL,
             {
@@ -183,7 +199,7 @@ app.post("/ocr", upload.single("file"), async (req, res) => {
                 images: [
                     {
                         format: format,
-                        name: req.file.originalname || "document",
+                        name: imageFile.originalname || "document",
                         data: imageBuffer.toString("base64")
                     }
                 ]
@@ -196,52 +212,134 @@ app.post("/ocr", upload.single("file"), async (req, res) => {
             }
         );
 
-        // Normalize response
         const normalized = normalizeOCRResponse(ocrResponse.data);
+        console.log("✅ OCR Success, text length:", normalized.text.length);
+        console.log("📦 Words found:", normalized.words.length);
 
-        // Delete temp file
         deleteFile(filePath);
 
-        res.json(normalized);
+        // WRAPPED RESPONSE FOR ANDROID
+        res.json({
+            success: true,
+            data: normalized,
+            message: "OCR completed successfully"
+        });
 
     } catch (err) {
-        console.error("OCR Error:", err.response?.data || err.message);
+        console.error("❌ OCR Error:", err.response?.data || err.message);
 
-        // Clean up file on error
         if (filePath) {
             deleteFile(filePath);
         }
 
         res.status(500).json({
+            success: false,
             error: "OCR failed",
-            details: err.response?.data || err.message
+            message: err.response?.data || err.message
         });
     }
 });
 
 // ====================================================
-// ENDPOINT 2: POST /ocr/crop
+// ENDPOINT 2: POST /api/pdf/extract (Alias for OCR)
 // ====================================================
-app.post("/ocr/crop", upload.single("file"), async (req, res) => {
+app.post("/api/pdf/extract", upload.any(), async (req, res) => {
+    let filePath = null;
+
+    try {
+        console.log("📥 Received PDF extract request");
+        const pdfFile = req.files?.find(f => f.fieldname === "pdf" || f.fieldname === "image");
+
+        if (!pdfFile) {
+            return res.status(400).json({
+                success: false,
+                error: "No PDF file provided"
+            });
+        }
+
+        console.log("  File:", pdfFile.originalname);
+        console.log("  Size:", pdfFile.size, "bytes");
+
+        filePath = pdfFile.path;
+        const pdfBuffer = fs.readFileSync(filePath);
+
+        const ocrResponse = await axios.post(
+            process.env.NAVER_OCR_URL,
+            {
+                version: "V2",
+                requestId: `req_pdf_${Date.now()}`,
+                timestamp: Date.now(),
+                images: [
+                    {
+                        format: "pdf",
+                        name: pdfFile.originalname || "document",
+                        data: pdfBuffer.toString("base64")
+                    }
+                ]
+            },
+            {
+                headers: {
+                    "X-OCR-SECRET": process.env.NAVER_OCR_SECRET,
+                    "Content-Type": "application/json"
+                }
+            }
+        );
+
+        const normalized = normalizeOCRResponse(ocrResponse.data);
+        console.log("✅ PDF OCR Success, text length:", normalized.text.length);
+
+        deleteFile(filePath);
+
+        res.json({
+            success: true,
+            data: normalized,
+            message: "PDF OCR completed successfully"
+        });
+
+    } catch (err) {
+        console.error("❌ PDF OCR Error:", err.response?.data || err.message);
+
+        if (filePath) {
+            deleteFile(filePath);
+        }
+
+        res.status(500).json({
+            success: false,
+            error: "PDF OCR failed",
+            message: err.response?.data || err.message
+        });
+    }
+});
+
+// ====================================================
+// ENDPOINT 3: POST /api/ocr/crop
+// ====================================================
+app.post("/api/ocr/crop", upload.any(), async (req, res) => {
     let filePath = null;
     let croppedPath = null;
 
     try {
-        if (!req.file) {
-            return res.status(400).json({ error: "No file provided" });
+        const imageFile = req.files?.find(f => f.fieldname === "image");
+
+        if (!imageFile) {
+            return res.status(400).json({
+                success: false,
+                error: "No image file provided"
+            });
         }
 
-        // Get crop coordinates from body
         const { x, y, width, height } = req.body;
 
         if (!x || !y || !width || !height) {
-            deleteFile(req.file.path);
-            return res.status(400).json({ error: "Missing crop coordinates (x, y, width, height)" });
+            deleteFile(imageFile.path);
+            return res.status(400).json({
+                success: false,
+                error: "Missing crop coordinates (x, y, width, height)"
+            });
         }
 
-        filePath = req.file.path;
+        filePath = imageFile.path;
 
-        // Crop image using sharp
         const croppedBuffer = await sharp(filePath)
             .extract({
                 left: parseInt(x),
@@ -251,11 +349,9 @@ app.post("/ocr/crop", upload.single("file"), async (req, res) => {
             })
             .toBuffer();
 
-        // Save cropped image temporarily
         croppedPath = `${filePath}_cropped.png`;
         fs.writeFileSync(croppedPath, croppedBuffer);
 
-        // Now perform OCR on cropped image
         const ocrResponse = await axios.post(
             process.env.NAVER_OCR_URL,
             {
@@ -278,44 +374,50 @@ app.post("/ocr/crop", upload.single("file"), async (req, res) => {
             }
         );
 
-        // Normalize response
         const normalized = normalizeOCRResponse(ocrResponse.data);
 
-        // Clean up
         deleteFile(filePath);
         deleteFile(croppedPath);
 
-        res.json(normalized);
+        res.json({
+            success: true,
+            data: normalized,
+            message: "OCR crop completed successfully"
+        });
 
     } catch (err) {
         console.error("OCR Crop Error:", err.response?.data || err.message);
 
-        // Clean up files on error
         if (filePath) deleteFile(filePath);
         if (croppedPath) deleteFile(croppedPath);
 
         res.status(500).json({
+            success: false,
             error: "OCR crop failed",
-            details: err.response?.data || err.message
+            message: err.response?.data || err.message
         });
     }
 });
 
 // ====================================================
-// ENDPOINT 3: POST /tts
+// ENDPOINT 4: POST /api/tts/synthesize
 // ====================================================
-app.post("/tts", async (req, res) => {
+app.post("/api/tts/synthesize", async (req, res) => {
     try {
-        const { text, speaker } = req.body;
+        console.log("🔊 Received TTS request");
+        const { text, voice, speaker } = req.body;
 
         if (!text) {
-            return res.status(400).json({ error: "No text provided" });
+            return res.status(400).json({
+                success: false,
+                error: "No text provided"
+            });
         }
 
-        // Default speaker if not provided
-        const speakerName = speaker || "nara"; // NAVER TTS Premium default voice
+        const speakerName = voice || speaker || "nara";
+        console.log("  Speaker:", speakerName);
+        console.log("  Text length:", text.length);
 
-        // Call NAVER TTS Premium API
         const ttsResponse = await axios.post(
             process.env.NAVER_TTS_URL,
             {
@@ -336,45 +438,56 @@ app.post("/tts", async (req, res) => {
             }
         );
 
-        // Convert audio to base64
         const audioBase64 = Buffer.from(ttsResponse.data).toString("base64");
+        console.log("✅ TTS Success, audio size:", audioBase64.length);
 
         res.json({
-            audio: audioBase64
+            success: true,
+            data: {
+                audio: audioBase64,
+                format: "mp3"
+            }
         });
 
     } catch (err) {
-        console.error("TTS Error:", err.response?.data || err.message);
+        console.error("❌ TTS Error:", err.response?.data || err.message);
         res.status(500).json({
+            success: false,
             error: "TTS failed",
-            details: err.message
+            message: err.message
         });
     }
 });
 
 // ====================================================
-// ENDPOINT 4: POST /tts/timing
+// ENDPOINT 5: POST /api/tts/timing
 // ====================================================
-app.post("/tts/timing", async (req, res) => {
+app.post("/api/tts/timing", async (req, res) => {
     try {
         const { text } = req.body;
 
         if (!text) {
-            return res.status(400).json({ error: "No text provided" });
+            return res.status(400).json({
+                success: false,
+                error: "No text provided"
+            });
         }
 
-        // Calculate approximate timing
         const timings = calculateTiming(text);
 
         res.json({
-            timings: timings
+            success: true,
+            data: {
+                timings: timings
+            }
         });
 
     } catch (err) {
         console.error("Timing Error:", err.message);
         res.status(500).json({
+            success: false,
             error: "Timing calculation failed",
-            details: err.message
+            message: err.message
         });
     }
 });
@@ -383,10 +496,12 @@ app.post("/tts/timing", async (req, res) => {
 // START SERVER
 // ====================================================
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Server running on port ${PORT}`);
-    console.log(`📝 OCR endpoint: POST http://localhost:${PORT}/ocr`);
-    console.log(`✂️  Crop endpoint: POST http://localhost:${PORT}/ocr/crop`);
-    console.log(`🔊 TTS endpoint: POST http://localhost:${PORT}/tts`);
-    console.log(`⏱️  Timing endpoint: POST http://localhost:${PORT}/tts/timing`);
+    console.log(`📝 OCR endpoint: POST http://localhost:${PORT}/api/ocr/extract`);
+    console.log(`📄 PDF endpoint: POST http://localhost:${PORT}/api/pdf/extract`);
+    console.log(`✂️  Crop endpoint: POST http://localhost:${PORT}/api/ocr/crop`);
+    console.log(`🔊 TTS endpoint: POST http://localhost:${PORT}/api/tts/synthesize`);
+    console.log(`⏱️  Timing endpoint: POST http://localhost:${PORT}/api/tts/timing`);
+    console.log(`🏥 Health check: GET http://localhost:${PORT}/health`);
 });

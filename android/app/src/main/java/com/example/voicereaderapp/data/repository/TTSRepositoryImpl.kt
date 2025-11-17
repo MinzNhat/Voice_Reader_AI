@@ -2,22 +2,24 @@ package com.example.voicereaderapp.data.repository
 
 import android.media.MediaPlayer
 import android.util.Base64
-import com.example.voicereaderapp.data.remote.api.VoiceReaderAPI
-import com.example.voicereaderapp.data.remote.model.TTSRequest
-import com.example.voicereaderapp.data.remote.model.TimingRequest
+import com.example.voicereaderapp.data.remote.ApiService
+import com.example.voicereaderapp.data.remote.dto.TtsRequest
+import com.example.voicereaderapp.data.remote.dto.TtsResponse  // ADD THIS - DTO from API
 import com.example.voicereaderapp.data.remote.model.TimingResponse
+import com.example.voicereaderapp.data.remote.model.WordTiming
 import com.example.voicereaderapp.domain.repository.TTSRepository
 import com.example.voicereaderapp.utils.Result
 import kotlinx.coroutines.*
 import java.io.File
 import java.io.FileOutputStream
+import javax.inject.Inject
 
 /**
  * Implementation of TTS repository
  * Handles TTS API calls and audio playback
  */
-class TTSRepositoryImpl(
-    private val api: VoiceReaderAPI
+class TTSRepositoryImpl @Inject constructor(
+    private val api: ApiService
 ) : TTSRepository {
 
     private var mediaPlayer: MediaPlayer? = null
@@ -29,11 +31,23 @@ class TTSRepositoryImpl(
     ): Result<String> {
         return withContext(Dispatchers.IO) {
             try {
-                val request = TTSRequest(text, speaker)
-                val response = api.generateTTS(request)
+                // Use DTO TtsRequest
+                val request = TtsRequest(
+                    text = text,
+                    voice = speaker
+                )
+
+                // Call synthesizeSpeech (not generateTTS)
+                val response = api.synthesizeSpeech(request)
 
                 if (response.isSuccessful && response.body() != null) {
-                    Result.Success(response.body()!!.audio)
+                    val apiResponse = response.body()!!
+                    if (apiResponse.success && apiResponse.data != null) {
+                        // Return base64 audio string
+                        Result.Success(apiResponse.data.audio)
+                    } else {
+                        Result.Error(Exception("TTS failed: ${apiResponse.message ?: apiResponse.error ?: "Unknown error"}"))
+                    }
                 } else {
                     Result.Error(Exception("TTS failed: ${response.message()}"))
                 }
@@ -47,14 +61,21 @@ class TTSRepositoryImpl(
     override suspend fun getWordTimings(text: String): Result<TimingResponse> {
         return withContext(Dispatchers.IO) {
             try {
-                val request = TimingRequest(text)
-                val response = api.getWordTimings(request)
+                // TODO: Backend doesn't have timing endpoint yet
+                // Generate approximate timings based on word count
+                val words = text.split(Regex("\\s+"))
+                val avgWordDuration = 350L // ~350ms per word (rough estimate)
 
-                if (response.isSuccessful && response.body() != null) {
-                    Result.Success(response.body()!!)
-                } else {
-                    Result.Error(Exception("Timing failed: ${response.message()}"))
+                val timings = words.mapIndexed { index, word ->
+                    WordTiming(
+                        word = word,
+                        index = index,
+                        startMs = index * avgWordDuration,
+                        endMs = (index + 1) * avgWordDuration
+                    )
                 }
+
+                Result.Success(TimingResponse(timings))
 
             } catch (e: Exception) {
                 Result.Error(e)

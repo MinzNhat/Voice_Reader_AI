@@ -1,7 +1,7 @@
 package com.example.voicereaderapp.data.repository
 
-import com.example.voicereaderapp.data.remote.api.VoiceReaderAPI
-import com.example.voicereaderapp.data.remote.model.OCRResponse
+import com.example.voicereaderapp.data.remote.ApiService
+import com.example.voicereaderapp.data.remote.model.OCRResponse  // Backend returns this directly
 import com.example.voicereaderapp.domain.repository.OCRRepository
 import com.example.voicereaderapp.utils.Result
 import kotlinx.coroutines.Dispatchers
@@ -11,13 +11,14 @@ import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.File
+import javax.inject.Inject
 
 /**
  * Implementation of OCR repository
  * Handles communication with backend OCR API
  */
-class OCRRepositoryImpl(
-    private val api: VoiceReaderAPI
+class OCRRepositoryImpl @Inject constructor(
+    private val api: ApiService
 ) : OCRRepository {
 
     override suspend fun performOCR(file: File): Result<OCRResponse> {
@@ -34,16 +35,30 @@ class OCRRepositoryImpl(
                 // Create multipart body
                 val requestBody = file.asRequestBody(mediaType)
                 val multipartBody = MultipartBody.Part.createFormData(
-                    "file",
+                    "image", // Changed from "file" to match ApiService
                     file.name,
                     requestBody
                 )
 
-                // Make API call
-                val response = api.performOCR(multipartBody)
+                // Make API call - use correct endpoint based on file type
+                val response = if (file.extension.lowercase() == "pdf") {
+                    // For PDF files
+                    api.extractTextFromPdf(multipartBody)
+                } else {
+                    // For image files
+                    val languageBody = "en".toRequestBody("text/plain".toMediaTypeOrNull())
+                    api.extractTextFromImage(multipartBody, languageBody)
+                }
 
                 if (response.isSuccessful && response.body() != null) {
-                    Result.Success(response.body()!!)
+                    val apiResponse = response.body()!!
+                    if (apiResponse.success && apiResponse.data != null) {
+                        // ✅ Backend now returns full OCRResponse with words!
+                        val ocrModel: OCRResponse = apiResponse.data
+                        Result.Success(ocrModel)
+                    } else {
+                        Result.Error(Exception("OCR failed: ${apiResponse.message ?: apiResponse.error ?: "Unknown error"}"))
+                    }
                 } else {
                     Result.Error(Exception("OCR failed: ${response.message()}"))
                 }
@@ -73,28 +88,25 @@ class OCRRepositoryImpl(
                 // Create multipart body
                 val fileBody = file.asRequestBody(mediaType)
                 val filePart = MultipartBody.Part.createFormData(
-                    "file",
+                    "image",
                     file.name,
                     fileBody
                 )
 
-                // Create crop coordinate bodies
-                val xBody = x.toString().toRequestBody("text/plain".toMediaTypeOrNull())
-                val yBody = y.toString().toRequestBody("text/plain".toMediaTypeOrNull())
-                val widthBody = width.toString().toRequestBody("text/plain".toMediaTypeOrNull())
-                val heightBody = height.toString().toRequestBody("text/plain".toMediaTypeOrNull())
-
-                // Make API call
-                val response = api.performOCRWithCrop(
-                    filePart,
-                    xBody,
-                    yBody,
-                    widthBody,
-                    heightBody
-                )
+                // For crop, we'll use the regular image endpoint for now
+                // TODO: Backend needs to implement crop endpoint
+                val languageBody = "en".toRequestBody("text/plain".toMediaTypeOrNull())
+                val response = api.extractTextFromImage(filePart, languageBody)
 
                 if (response.isSuccessful && response.body() != null) {
-                    Result.Success(response.body()!!)
+                    val apiResponse = response.body()!!
+                    if (apiResponse.success && apiResponse.data != null) {
+                        // ✅ Backend now returns full OCRResponse with words!
+                        val ocrModel: OCRResponse = apiResponse.data
+                        Result.Success(ocrModel)
+                    } else {
+                        Result.Error(Exception("OCR crop failed: ${apiResponse.message ?: apiResponse.error ?: "Unknown error"}"))
+                    }
                 } else {
                     Result.Error(Exception("OCR crop failed: ${response.message()}"))
                 }

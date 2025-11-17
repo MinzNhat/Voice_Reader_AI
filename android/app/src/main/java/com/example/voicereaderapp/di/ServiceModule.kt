@@ -1,10 +1,14 @@
 package com.example.voicereaderapp.di
 
+import android.content.Context
 import com.example.voicereaderapp.data.service.TextToSpeechServiceImpl
 import com.example.voicereaderapp.domain.service.TextToSpeechService
+import com.example.voicereaderapp.ui.reader.TtsManager
 import dagger.Binds
 import dagger.Module
+import dagger.Provides
 import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 

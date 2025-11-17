@@ -9,6 +9,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.NavController
+import com.example.voicereaderapp.ui.index.Screen
+
 
 /**
  * Screen for reading PDF documents.
@@ -18,6 +21,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
  */
 @Composable
 fun PdfReaderScreen(
+    navController: NavController,
     viewModel: PdfReaderViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -61,7 +65,7 @@ fun PdfReaderScreen(
                     items(uiState.documents) { document ->
                         Card(
                             modifier = Modifier.fillMaxWidth(),
-                            onClick = { viewModel.openDocument(document.id) }
+                            onClick = { navController.navigate(Screen.Reader.createRoute(document.id)) }
                         ) {
                             Column(
                                 modifier = Modifier.padding(16.dp)

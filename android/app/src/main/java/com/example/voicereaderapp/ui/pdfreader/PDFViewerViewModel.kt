@@ -7,11 +7,13 @@ import com.example.voicereaderapp.data.remote.model.WordTiming
 import com.example.voicereaderapp.domain.repository.OCRRepository
 import com.example.voicereaderapp.domain.repository.TTSRepository
 import com.example.voicereaderapp.utils.Result
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.io.File
+import javax.inject.Inject
 
 /**
  * UI State for PDF Viewer with OCR and TTS
@@ -44,7 +46,8 @@ data class PDFViewerUiState(
  * ViewModel for PDF Viewer with OCR and TTS
  * Integrates PDF rendering, OCR processing, TTS generation, and real-time highlighting
  */
-class PDFViewerViewModel(
+@HiltViewModel
+class PDFViewerViewModel @Inject constructor(
     private val ocrRepository: OCRRepository,
     private val ttsRepository: TTSRepository
 ) : ViewModel() {
