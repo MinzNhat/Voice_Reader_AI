@@ -12,6 +12,7 @@ import com.example.voicereaderapp.ui.pdfreader.PdfReaderScreen
 import com.example.voicereaderapp.ui.scanner.ScannerScreen
 import com.example.voicereaderapp.ui.livereader.LiveReaderScreen
 import com.example.voicereaderapp.ui.settings.SettingsScreen
+import com.example.voicereaderapp.ui.test.UTPTestScreen
 import com.example.voicereaderapp.utils.NavigationHelper
 import com.example.voicereaderapp.utils.VoiceFeedback
 import com.example.voicereaderapp.utils.provideFeedback
@@ -23,6 +24,7 @@ import com.example.voicereaderapp.utils.provideFeedback
  * - Scanner
  * - Live Reader
  * - Settings
+ * - UTP Test (Debug/Development)
  *
  * Fully accessible for visually impaired users with:
  * - Screen reader support (TalkBack)
@@ -63,8 +65,8 @@ fun IndexScreen(
         },
         bottomBar = {
             NavigationBar(
-                modifier = Modifier.semantics {
-                    contentDescription = "Thanh điều hướng với 4 tab: PDF, Quét ảnh, Đọc trực tiếp, và Cài đặt"
+                    modifier = Modifier.semantics {
+                    contentDescription = "Thanh điều hướng với 5 tab: PDF, Quét ảnh, Đọc trực tiếp, Cài đặt, và Test UTP"
                 }
             ) {
                 NavigationBarItem(
@@ -143,6 +145,25 @@ fun IndexScreen(
                         }
                     }
                 )
+                NavigationBarItem(
+                    icon = { /* Icon */ },
+                    label = { Text("Test") },
+                    selected = selectedTab == 4,
+                    onClick = { 
+                        viewModel.selectTab(4)
+                        context.provideFeedback(
+                            VoiceFeedback.FeedbackType.INFO,
+                            "UTP Test Screen - Universal Text Pipeline Testing"
+                        )
+                    },
+                    modifier = Modifier.semantics {
+                        contentDescription = if (selectedTab == 4) {
+                            "Tab test UTP, đang được chọn"
+                        } else {
+                            "Tab test UTP, chạm hai lần để chọn"
+                        }
+                    }
+                )
             }
         }
     ) { paddingValues ->
@@ -152,6 +173,8 @@ fun IndexScreen(
                 1 -> ScannerScreen()
                 2 -> LiveReaderScreen()
                 3 -> SettingsScreen()
+                4 -> UTPTestScreen()
+                // Removed PdfTtsTestScreen; keep index mapping to 0..4
             }
         }
     }

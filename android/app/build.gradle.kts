@@ -77,6 +77,11 @@ dependencies {
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.coroutines.android)
     
+    // OCR is delegated to backend — no local ML Kit dependency by default.
+    
+    // Image Loading
+    implementation(libs.coil.compose)
+    
     // Testing
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
