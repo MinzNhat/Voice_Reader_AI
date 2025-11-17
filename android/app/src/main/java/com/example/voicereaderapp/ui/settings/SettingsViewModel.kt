@@ -82,6 +82,19 @@ class SettingsViewModel @Inject constructor(
     }
 
     /**
+     * Updates the selected voice.
+     *
+     * @param voiceId Voice identifier (e.g., "matt", "sarah", "emma")
+     */
+    fun updateVoice(voiceId: String) {
+        _uiState.value = _uiState.value.copy(
+            settings = _uiState.value.settings.copy(voiceId = voiceId)
+        )
+        // Auto-save when voice changes
+        saveSettings()
+    }
+
+    /**
      * Saves the current settings to repository.
      */
     fun saveSettings() {

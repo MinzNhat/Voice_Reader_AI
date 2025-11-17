@@ -59,6 +59,7 @@ fun UnifiedReaderScreen(
     onSeek: (Float) -> Unit,
     onSpeedChange: (Float) -> Unit,
     onVoiceChange: (String) -> Unit,
+    onTakeNote: () -> Unit = {},  // Added for Take Note feature
     onBack: () -> Unit
 ) {
     var showControls by remember { mutableStateOf(false) }
@@ -312,6 +313,10 @@ fun UnifiedReaderScreen(
                     onClickVoice = {
                         showVoicePicker = true
                         showSpeedSlider = false
+                    },
+                    onTakeNote = {
+                        onTakeNote()
+                        showControls = false
                     },
                     onClose = {
                         showControls = false

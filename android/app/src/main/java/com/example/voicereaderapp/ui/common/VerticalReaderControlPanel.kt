@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.HelpOutline
+import androidx.compose.material.icons.filled.NoteAdd
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.Card
@@ -46,8 +47,9 @@ fun VerticalReaderPanel(
     onSpeedChange: (Float) -> Unit,
     selectedVoice: String,
     onSelectVoice: (String) -> Unit,
-    onClickSpeed: () -> Unit,     // <-- thêm
+    onClickSpeed: () -> Unit,
     onClickVoice: () -> Unit,
+    onTakeNote: () -> Unit = {},  // <-- Added for Take Note feature
     onClose: () -> Unit
 ) {
     var showSpeed by remember { mutableStateOf(false) }
@@ -100,8 +102,17 @@ fun VerticalReaderPanel(
                     .clickable { onClickVoice()}
             )
 
-            // Other icons
-            Icon(Icons.Default.PhotoCamera, contentDescription = null, modifier = Modifier.size(26.dp))
+            // Take Note icon
+            Icon(
+                Icons.Default.NoteAdd,
+                contentDescription = "Take Note",
+                modifier = Modifier
+                    .size(26.dp)
+                    .clickable { onTakeNote() },
+                tint = MaterialTheme.colorScheme.primary
+            )
+
+            // Other icons (can be used for future features)
             Icon(Icons.Default.BookmarkBorder, contentDescription = null, modifier = Modifier.size(26.dp))
             Icon(Icons.Default.HelpOutline, contentDescription = null, modifier = Modifier.size(26.dp))
         }

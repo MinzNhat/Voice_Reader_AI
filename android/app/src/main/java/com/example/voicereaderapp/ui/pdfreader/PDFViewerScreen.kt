@@ -68,6 +68,7 @@ fun PDFViewerScreen(
     val context = LocalContext.current
     var pdfFile by remember { mutableStateOf<File?>(null) }
     var documentTitle by remember { mutableStateOf<String?>(null) }
+    var showTakeNoteDialog by remember { mutableStateOf(false) }
 
     // Handle new import (fileUri provided)
     LaunchedEffect(fileUri) {
@@ -143,8 +144,21 @@ fun PDFViewerScreen(
             },
             onSpeedChange = { viewModel.setPlaybackSpeed(it) },
             onVoiceChange = { viewModel.setSpeaker(it) },
+            onTakeNote = { showTakeNoteDialog = true },
             onBack = { navController.popBackStack() }
         )
+
+        // Take Note Dialog
+        if (showTakeNoteDialog) {
+            com.example.voicereaderapp.ui.common.TakeNoteDialog(
+                documentTitle = uiState.documentTitle ?: documentTitle?.removeSuffix(".pdf")?.removeSuffix(".PDF") ?: "PDF Document",
+                onDismiss = { showTakeNoteDialog = false },
+                onSaveNote = { note ->
+                    // TODO: Save note to database
+                    android.util.Log.d("PDFViewerScreen", "Note saved: $note")
+                }
+            )
+        }
 
         // Error Snackbar
         if (uiState.error != null) {

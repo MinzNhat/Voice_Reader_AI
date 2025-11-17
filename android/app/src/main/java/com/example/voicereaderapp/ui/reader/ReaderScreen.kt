@@ -31,6 +31,7 @@ fun ReaderScreen(
     val uiState by viewModel.uiState.collectAsState()
     val settingsViewModel: SettingsViewModel = hiltViewModel()
     val settingsState by settingsViewModel.uiState.collectAsState()
+    var showTakeNoteDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(documentId) {
         viewModel.loadDocument(documentId)
@@ -77,8 +78,21 @@ fun ReaderScreen(
         },
         onSpeedChange = { settingsViewModel.updateSpeed(it) },
         onVoiceChange = { /* TODO: Implement voice change */ },
+        onTakeNote = { showTakeNoteDialog = true },
         onBack = { navController.popBackStack() }
     )
+
+    // Take Note Dialog
+    if (showTakeNoteDialog) {
+        com.example.voicereaderapp.ui.common.TakeNoteDialog(
+            documentTitle = uiState.documentTitle.takeIf { it.isNotBlank() } ?: "Document",
+            onDismiss = { showTakeNoteDialog = false },
+            onSaveNote = { note ->
+                // TODO: Save note to database
+                android.util.Log.d("ReaderScreen", "Note saved: $note")
+            }
+        )
+    }
 }
 
 /**

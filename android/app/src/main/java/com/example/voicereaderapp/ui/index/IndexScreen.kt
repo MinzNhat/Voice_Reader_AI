@@ -155,6 +155,11 @@ fun IndexScreen(
     var selectedDocumentId by remember { mutableStateOf<String?>(null) }
     var selectedDocumentTitle by remember { mutableStateOf("") }
 
+    // State for global settings sheet
+    var showGlobalSettings by remember { mutableStateOf(false) }
+    val settingsViewModel: com.example.voicereaderapp.ui.settings.SettingsViewModel = hiltViewModel()
+    val settingsState by settingsViewModel.uiState.collectAsState()
+
     // File picker để import PDF
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -189,7 +194,9 @@ fun IndexScreen(
                 .background(Color.Transparent),
             containerColor = Color.Transparent,
             topBar = {
-                HomeTopBar()
+                HomeTopBar(
+                    onSettingsClick = { showGlobalSettings = true }
+                )
             },
             floatingActionButton = {
                 ScanFab {
@@ -283,6 +290,20 @@ fun IndexScreen(
                 }
             )
         }
+
+        // Global Settings Sheet
+        if (showGlobalSettings) {
+            com.example.voicereaderapp.ui.settings.GlobalSettingsSheet(
+                speed = settingsState.settings.speed,
+                selectedVoice = settingsState.settings.voiceId.ifEmpty { "matt" },
+                onSpeedChange = {
+                    settingsViewModel.updateSpeed(it)
+                    settingsViewModel.saveSettings()
+                },
+                onVoiceChange = { settingsViewModel.updateVoice(it) },
+                onDismiss = { showGlobalSettings = false }
+            )
+        }
     }
 }
 
@@ -291,7 +312,9 @@ fun IndexScreen(
 // --------------------------------------------------------
 
 @Composable
-fun HomeTopBar() {
+fun HomeTopBar(
+    onSettingsClick: () -> Unit = {}
+) {
     TopAppBar(
         title = {
             Row(
@@ -315,10 +338,10 @@ fun HomeTopBar() {
             }
         },
         actions = {
-            IconButton(onClick = { /* TODO: user profile */ }) {
+            IconButton(onClick = onSettingsClick) {
                 Icon(
-                    imageVector = Icons.Default.AccountCircle,
-                    contentDescription = "Profile"
+                    imageVector = Icons.Default.Settings,
+                    contentDescription = "Settings"
                 )
             }
         },
