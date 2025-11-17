@@ -1,142 +1,172 @@
-📘 UI Migration Specification
-Convert PdfReaderScreen UI → match ReaderScreen UI
+📄 Unified Reader Screen Refactor — Issue Description & Requirements
 
-(keep logic identical, only change UI layout)
+This document describes the current issues in the app architecture and UI, and the required refactor to unify the PDF reader and text reader into a single screen without changing their existing logic.
 
-✅ 1. Target Goal
+## ❗ 1. PDF Reader and Text Reader Are Split Into Two Separate Screens
 
-Rewrite the UI of:
+Currently the app has:
 
-PdfReaderScreen.kt
+ReaderView → for text files (TTS + working seekbar)
 
-PDFViewerScreen.kt
+PDFViewerScreen → for PDF files (OCR + TTS, UI different)
 
-so that their UI layout matches the exact style and structure of:
+➤ Problem:
 
-ReaderScreen.kt 
+When a user imports a PDF file, the app opens:
 
-ReaderViewModel
+✔ PDFViewerScreen
+But when the user opens the same file from Continue Listening, the app opens:
+✘ ReaderView
 
-But:
+This causes:
 
-Keep all existing logic from
+completely different UI
 
-PdfReaderViewModel.kt
+different behavior
 
-PDFViewerViewModel.kt
+the seekbar in PDF mode does NOT work
 
-And any PDF-related state & functions
+header/title layout mismatch
 
-Do NOT merge ViewModels
+user feels like they’re using two different apps
 
-Do NOT remove PDF logic
+## ❗ 2. File Name Behavior Is Incorrect
 
-Only rewrite the UI layer so it looks and behaves like ReaderScreen UI.
+After importing:
 
-📌 2. Files Provided
-PDF-related (must keep logic):
+The file name is replaced with “upload……” instead of keeping the original file name
 
-DocumentPickerScreen.kt
+Long file names do not scroll (no marquee)
 
-PdfReaderScreen.kt
+Icons (back & settings) overlap the text
 
-PdfReaderViewModel.kt
+ReaderView and PDFViewer use different header layouts
 
-PDFViewerScreen.kt
+This produces inconsistent UX.
 
-PDFViewerViewModel.kt
+## ❗ 3. The Audio Seekbar in PDF Reader Does Not Work
 
-Reader UI reference (copy layout here):
+In ReaderView, the seekbar works correctly
 
-ReaderScreen.kt ← main UI reference 
+In PDFViewerScreen, the seekbar cannot seek audio
 
-ReaderViewModel
+This happens because:
 
-ReaderViewModel.kt ← reference reading logic (do not merge) 
+PDFViewer uses a separate TTS + timing logic
 
-ReaderViewModel
+It is not synchronized with the ReaderViewModel
 
-TtsManager.kt ← reference for audio styling, but not for logic 
+User expectation: If audio is playing, seeking should always work, regardless of file type.
 
-TtsManager
+## ❗ 4. Fragmented UI Will Break Future Features
 
-🎨 3. UI Components that must be duplicated (from ReaderScreen)
+Later you plan to add:
 
-Claude must replicate the following UI components exactly:
+reading from images
 
-✔ Top App Bar
+reading from OCR output
 
-Title centered
+reading from clipboard
 
-Back button
+reading from multiple file formats
 
-Settings / voice / search icons if present
+If PDF/Text/Image keep separate screens:
 
-✔ Content Layout
+→ you will need to rewrite UI multiple times
+→ rewrite TTS logic multiple times
+→ rewrite seekbar logic multiple times
+→ Continue Listening must handle multiple formats individually
+→ Maintenance becomes very difficult
 
-Full-screen scrollable text area
+This architecture will eventually break.
 
-Adaptive padding
+# 🎯 Proposed Solution: Merge Both Screens Into One
 
-Highlight current spoken word
+You need to merge ReaderView and PDFViewerScreen into a single, unified screen:
 
-Selection tap areas
+# ✔ UnifiedReaderScreen
 
-Same typography, colors, spacing
+This unified screen MUST:
 
-✔ Bottom Player Bar
+keep all existing logic for PDF (ViewModel untouched)
 
-Play / Pause
+keep all existing logic for text (ViewModel untouched)
 
-Forward / Rewind
+unify ONLY the UI (header, controls, seekbar, layout)
 
-Speed control
+do not rewrite TTS logic
 
-Seek by tapping a word
+do not rewrite OCR logic
 
-Same rounded shape, same shadows, same animations
+do not break existing architecture
 
-✔ Colors & Theme
+This is a UI merge, not a logic rewrite.
 
-Use your global Theme (from theme.kt)
+## 🟦 Unified Navigation Route
 
-Same background gradient or surface colors as ReaderScreen
+Use a single route for all reading types:
 
-❗ Must remove:
+reader?fileUri={uri}&type={pdf|text}
 
-Grey blank area
+Example:
 
-Default PDF layout
-(the new layout must not look like a PDF canvas)
+When importing a PDF:
 
-📄 A rewritten PDFViewerScreen.kt (if needed)
+reader?fileUri=content://xxx&type=pdf
 
-If this screen is still used, UI must also match ReaderScreen layout.
 
-If PDFViewerScreen is only a viewer, then convert it into:
+When opening from Continue Listening:
 
-A simple PDF preview at top (optional)
+reader?fileUri=content://xxx&type=pdf
 
-Extracted text reader below using ReaderScreen style
 
-🔁 5. What must NOT be changed
+or
 
-Claude must keep the following exactly as is:
+reader?fileUri=content://xxx&type=text
 
-🚫 No logic changes
 
-No modification to ViewModel states
+This ensures both open the exact same screen.
 
-No modification to PDF extraction flow
+## 🟩 UnifiedReaderScreen Responsibilities
+Feature	PDF	Text
+Load file	✔	✔
+Extract text	✔ (OCR)	✔
+TTS playback	✔	✔
+Working seekbar	✔	✔
+Header with marquee	✔	✔
+Continue Listening sync	✔	✔
 
-No modification to TTS logic
+Result: One screen, one UI, two different data sources.
 
-No modification to repository/usecases
+## 🟧 Required UI Behavior
+✔ 1. Header Requirements
 
-🚫 No merging ViewModels
+Back icon (left)
 
-ReaderViewModel and PdfReaderViewModel stay separate.
+Marquee file name (center)
 
-🚫 No new business logic added
+Settings icon (right)
 
-Only UI changes.
+If the file name is too long:
+
+It should scroll left → right (marquee)
+
+The beginning portion can be hidden behind the icons
+
+✔ 2. Seekbar Requirements
+
+Must always be seekable (same as ReaderView)
+
+Uses unified TTS timing logic
+
+Smooth dragging + gesture detection
+
+✔ 3. Layout Requirements
+
+Use the UI layout of ReaderView (cleaner + more modern)
+
+PDF/Text only change how they load the text internally
+
+All controls (play, pause, next, speed, voice) must be unified
+
+**NOTE:** DO NOT CHANGE ANY LOGIC, JUST SYNC THE UI

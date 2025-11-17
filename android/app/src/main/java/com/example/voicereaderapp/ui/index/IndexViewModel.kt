@@ -19,7 +19,9 @@ import javax.inject.Inject
 @HiltViewModel
 class IndexViewModel @Inject constructor(
     private val getAllDocumentsUseCase: GetAllDocumentsUseCase,
-    private val saveDocumentUseCase: SaveDocumentUseCase
+    private val saveDocumentUseCase: SaveDocumentUseCase,
+    private val deleteDocumentUseCase: com.example.voicereaderapp.domain.usecase.DeleteDocumentUseCase,
+    private val updateDocumentTitleUseCase: com.example.voicereaderapp.domain.usecase.UpdateDocumentTitleUseCase
 ) : ViewModel() {
     private val _selectedTab = MutableStateFlow(0)
 
@@ -54,6 +56,29 @@ class IndexViewModel @Inject constructor(
     fun saveImportedDocument(document: ReadingDocument) {
         viewModelScope.launch {
             saveDocumentUseCase(document)
+        }
+    }
+
+    /**
+     * Deletes a document by its ID.
+     *
+     * @param documentId ID of the document to delete
+     */
+    fun deleteDocument(documentId: String) {
+        viewModelScope.launch {
+            deleteDocumentUseCase(documentId)
+        }
+    }
+
+    /**
+     * Updates the title of a document.
+     *
+     * @param documentId ID of the document to rename
+     * @param newTitle New title for the document
+     */
+    fun updateDocumentTitle(documentId: String, newTitle: String) {
+        viewModelScope.launch {
+            updateDocumentTitleUseCase(documentId, newTitle)
         }
     }
 }

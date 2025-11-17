@@ -185,4 +185,30 @@ class TTSRepositoryImpl @Inject constructor(
             e.printStackTrace()
         }
     }
+
+    override fun seekTo(positionMs: Long) {
+        try {
+            mediaPlayer?.seekTo(positionMs.toInt())
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    override fun getCurrentPosition(): Long {
+        return try {
+            mediaPlayer?.currentPosition?.toLong() ?: 0L
+        } catch (e: Exception) {
+            e.printStackTrace()
+            0L
+        }
+    }
+
+    override fun getDuration(): Long {
+        return try {
+            mediaPlayer?.duration?.toLong() ?: 0L
+        } catch (e: Exception) {
+            e.printStackTrace()
+            0L
+        }
+    }
 }

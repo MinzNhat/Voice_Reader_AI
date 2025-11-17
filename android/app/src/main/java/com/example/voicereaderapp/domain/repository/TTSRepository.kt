@@ -66,4 +66,22 @@ interface TTSRepository {
      * Check if audio is currently playing
      */
     fun isPlaying(): Boolean
+
+    /**
+     * Seek to a specific position in the audio
+     * @param positionMs Position in milliseconds
+     */
+    fun seekTo(positionMs: Long)
+
+    /**
+     * Get current playback position
+     * @return Current position in milliseconds
+     */
+    fun getCurrentPosition(): Long
+
+    /**
+     * Get total audio duration
+     * @return Total duration in milliseconds
+     */
+    fun getDuration(): Long
 }

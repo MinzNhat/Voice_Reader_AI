@@ -7,6 +7,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -91,7 +92,7 @@ fun IndexWrapper() {
             )
         }
 
-        // PDF Viewer with OCR (Speechify-style)
+        // PDF Viewer with OCR (Speechify-style) - for new imports
         composable(
             route = Screen.PDFViewer.route,
             arguments = listOf(navArgument("fileUri") { type = NavType.StringType })
@@ -101,6 +102,22 @@ fun IndexWrapper() {
                 val uri = Uri.parse(fileUri)
                 PDFViewerScreen(
                     fileUri = uri,
+                    navController = navController
+                )
+            } else {
+                navController.popBackStack()
+            }
+        }
+
+        // PDF Viewer for saved documents (from Continue Listening)
+        composable(
+            route = "pdf_saved/{documentId}",
+            arguments = listOf(navArgument("documentId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val documentId = backStackEntry.arguments?.getString("documentId")
+            if (documentId != null) {
+                PDFViewerScreen(
+                    documentId = documentId,
                     navController = navController
                 )
             } else {
@@ -133,6 +150,11 @@ fun IndexScreen(
     val documents by viewModel.documents.collectAsState()
     val context = LocalContext.current
 
+    // State for rename dialog
+    var showRenameDialog by remember { mutableStateOf(false) }
+    var selectedDocumentId by remember { mutableStateOf<String?>(null) }
+    var selectedDocumentTitle by remember { mutableStateOf("") }
+
     // File picker để import PDF
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -146,8 +168,8 @@ fun IndexScreen(
     val importSources = listOf(
         ImportSource("Drive", Icons.Default.Cloud, Color(0xFF3B82F6)),
         ImportSource("Files", Icons.Default.Folder, Color(0xFF6B7280)),
-        ImportSource("Gmail", Icons.Default.Email, Color(0xFFEF4444)),
-        ImportSource("Messenger", Icons.Default.Message, Color(0xFF0EA5E9))
+//        ImportSource("Gmail", Icons.Default.Email, Color(0xFFEF4444)),
+//        ImportSource("Messenger", Icons.Default.Message, Color(0xFF0EA5E9))
     )
     Box(
         modifier = Modifier
@@ -199,8 +221,26 @@ fun IndexScreen(
                 item {
                     ContinueListeningCard(
                         documents = documents,
-                        onItemClick = { docId ->
-                            navController.navigate(Screen.Reader.createRoute(docId))
+                        onItemClick = { document ->
+                            // Route to appropriate screen based on document type
+                            when (document.type) {
+                                DocumentType.PDF -> {
+                                    // PDF documents use PDFViewerScreen with backend TTS
+                                    navController.navigate("pdf_saved/${document.id}")
+                                }
+                                else -> {
+                                    // Text/Live Screen use ReaderScreen with local TTS
+                                    navController.navigate(Screen.Reader.createRoute(document.id))
+                                }
+                            }
+                        },
+                        onDelete = { documentId ->
+                            viewModel.deleteDocument(documentId)
+                        },
+                        onRename = { documentId, currentTitle ->
+                            selectedDocumentId = documentId
+                            selectedDocumentTitle = currentTitle
+                            showRenameDialog = true
                         }
                     )
                 }
@@ -223,6 +263,26 @@ fun IndexScreen(
                 }
             }
         }
+
+        // Rename dialog
+        if (showRenameDialog) {
+            RenameDocumentDialog(
+                currentTitle = selectedDocumentTitle,
+                onDismiss = {
+                    showRenameDialog = false
+                    selectedDocumentId = null
+                    selectedDocumentTitle = ""
+                },
+                onConfirm = { newTitle ->
+                    selectedDocumentId?.let { documentId ->
+                        viewModel.updateDocumentTitle(documentId, newTitle)
+                    }
+                    showRenameDialog = false
+                    selectedDocumentId = null
+                    selectedDocumentTitle = ""
+                }
+            )
+        }
     }
 }
 
@@ -238,10 +298,11 @@ fun HomeTopBar() {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Image(
-                    painter = painterResource(R.drawable.logo),
+                    painter = painterResource(R.drawable.logo_2),
                     contentDescription = "App Logo",
                     modifier = Modifier
-                        .size(75.dp)
+                        .size(50.dp)
+                        .background(Color.Transparent)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
@@ -399,7 +460,9 @@ fun QuickActionChip(
 @Composable
 fun ContinueListeningCard(
     documents: List<ReadingDocument>,
-    onItemClick: (String) -> Unit
+    onItemClick: (ReadingDocument) -> Unit,
+    onDelete: (String) -> Unit,
+    onRename: (String, String) -> Unit
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -430,7 +493,9 @@ fun ContinueListeningCard(
                     items(documents) { doc ->
                         RecentDocCard(
                             document = doc,
-                            onClick = { onItemClick(doc.id) }
+                            onClick = { onItemClick(doc) },
+                            onDelete = { onDelete(doc.id) },
+                            onRename = { onRename(doc.id, doc.title) }
                         )
                     }
                 }
@@ -442,7 +507,9 @@ fun ContinueListeningCard(
 @Composable
 fun RecentDocCard(
     document: ReadingDocument,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onDelete: (() -> Unit)? = null,
+    onRename: (() -> Unit)? = null
 ) {
     val words = remember(document.content) {
         if (document.content.isBlank()) emptyList()
@@ -453,10 +520,11 @@ fun RecentDocCard(
     else (document.lastReadPosition.toFloat() / words.size.toFloat())
         .coerceIn(0f, 1f)
 
+    var showMenu by remember { mutableStateOf(false) }
+
     Column(
-        modifier = Modifier
-            .width(160.dp)
-            .clickable(onClick = onClick)
+        modifier = Modifier.width(160.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Surface(
             modifier = Modifier
@@ -465,42 +533,94 @@ fun RecentDocCard(
             shape = RoundedCornerShape(20.dp),
             color = Color.White
         ) {
-            Column(
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(14.dp),
-                verticalArrangement = Arrangement.SpaceBetween
+                    .clickable(onClick = onClick)
             ) {
-                Box(
+                Column(
                     modifier = Modifier
-                        .size(40.dp)
-                        .background(
-                            color = Color(0xFFE5EDFF),
-                            shape = RoundedCornerShape(12.dp)
-                        ),
-                    contentAlignment = Alignment.Center
+                        .fillMaxSize()
+                        .padding(14.dp),
+                    verticalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Description,
-                        contentDescription = null,
-                        tint = Color(0xFF1D4ED8)
-                    )
-                }
-
-                Column {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(4.dp)
-                            .clip(RoundedCornerShape(50))
-                            .background(Color(0xFFE5E7EB))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.Top
                     ) {
                         Box(
                             modifier = Modifier
-                                .fillMaxHeight()
-                                .fillMaxWidth(progress)
-                                .background(Color(0xFFEF4444))
-                        )
+                                .size(40.dp)
+                                .background(
+                                    color = Color(0xFFE5EDFF),
+                                    shape = RoundedCornerShape(12.dp)
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Description,
+                                contentDescription = null,
+                                tint = Color(0xFF1D4ED8)
+                            )
+                        }
+
+                        // Options menu button
+                        Box {
+                            IconButton(
+                                onClick = { showMenu = true },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.MoreVert,
+                                    contentDescription = "Options",
+                                    tint = Color(0xFF6B7280)
+                                )
+                            }
+
+                            DropdownMenu(
+                                expanded = showMenu,
+                                onDismissRequest = { showMenu = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Rename") },
+                                    onClick = {
+                                        showMenu = false
+                                        onRename?.invoke()
+                                    },
+                                    leadingIcon = {
+                                        Icon(Icons.Default.Edit, "Rename")
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Delete") },
+                                    onClick = {
+                                        showMenu = false
+                                        onDelete?.invoke()
+                                    },
+                                    leadingIcon = {
+                                        Icon(Icons.Default.Delete, "Delete")
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    Column {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(4.dp)
+                                .clip(RoundedCornerShape(50))
+                                .background(Color(0xFFE5E7EB))
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxHeight()
+                                    .fillMaxWidth(progress)
+                                    .background(Color(0xFFEF4444))
+                            )
+                        }
                     }
                 }
             }
@@ -514,13 +634,24 @@ fun RecentDocCard(
                 fontWeight = FontWeight.SemiBold
             ),
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            overflow = TextOverflow.Ellipsis,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            modifier = Modifier
+                .fillMaxWidth()
+                .basicMarquee(
+                    iterations = Int.MAX_VALUE,
+                    repeatDelayMillis = 2000,
+                    initialDelayMillis = 2000,
+                    velocity = 30.dp
+                )
         )
 
         Text(
             text = "Progress ${(progress * 100).toInt()}%",
             style = MaterialTheme.typography.labelSmall,
-            color = Color(0xFF6B7280)
+            color = Color(0xFF6B7280),
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
         )
     }
 }
@@ -609,6 +740,81 @@ fun ScanFab(onClick: () -> Unit) {
             modifier = Modifier.size(30.dp)
         )
     }
+}
+
+// --------------------------------------------------------
+//  RENAME DIALOG
+// --------------------------------------------------------
+
+@Composable
+fun RenameDocumentDialog(
+    currentTitle: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    var newTitle by remember { mutableStateOf(currentTitle) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Rename Document",
+                style = MaterialTheme.typography.titleLarge.copy(
+                    fontWeight = FontWeight.Bold
+                )
+            )
+        },
+        text = {
+            Column {
+                Text(
+                    text = "Enter a new name for this document:",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color(0xFF6B7280)
+                )
+                Spacer(Modifier.height(12.dp))
+                TextField(
+                    value = newTitle,
+                    onValueChange = { newTitle = it },
+                    singleLine = true,
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = Color(0xFFF3F4F6),
+                        unfocusedContainerColor = Color(0xFFF3F4F6),
+                        focusedIndicatorColor = Color(0xFF2563EB),
+                        unfocusedIndicatorColor = Color.Transparent
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    if (newTitle.isNotBlank()) {
+                        onConfirm(newTitle)
+                    }
+                },
+                enabled = newTitle.isNotBlank()
+            ) {
+                Text(
+                    "Rename",
+                    style = MaterialTheme.typography.labelLarge.copy(
+                        fontWeight = FontWeight.SemiBold
+                    )
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(
+                    "Cancel",
+                    style = MaterialTheme.typography.labelLarge
+                )
+            }
+        },
+        shape = RoundedCornerShape(20.dp),
+        containerColor = Color.White
+    )
 }
 
 fun getGreetingMessage(): String {

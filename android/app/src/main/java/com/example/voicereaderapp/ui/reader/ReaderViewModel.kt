@@ -2,6 +2,7 @@ package com.example.voicereaderapp.ui.reader
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.voicereaderapp.domain.model.DocumentType
 import com.example.voicereaderapp.domain.usecase.GetDocumentByIdUseCase
 import com.example.voicereaderapp.domain.usecase.UpdateReadPositionUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -15,6 +16,7 @@ data class ReaderUiState(
     val isLoading: Boolean = true,
     val documentTitle: String = "Đang tải...",
     val documentContent: String = "",
+    val documentType: DocumentType = DocumentType.LIVE_SCREEN,
     val isPlaying: Boolean = false,
     val currentWordIndex: Int = -1,
     val error: String? = null
@@ -55,6 +57,7 @@ class ReaderViewModel @Inject constructor(
                     isLoading = false,
                     documentTitle = document.title,
                     documentContent = document.content,
+                    documentType = document.type,
                     currentWordIndex = document.lastReadPosition
                 )
 

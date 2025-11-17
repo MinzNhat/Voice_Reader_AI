@@ -1,10 +1,12 @@
 package com.example.voicereaderapp.ui.pdfreader
 
 import android.content.Context
+import android.database.Cursor
 import android.graphics.Bitmap
 import android.graphics.pdf.PdfRenderer
 import android.net.Uri
 import android.os.ParcelFileDescriptor
+import android.provider.OpenableColumns
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -38,6 +40,8 @@ import coil.compose.AsyncImage
 import com.example.voicereaderapp.data.remote.model.OCRWord
 import com.example.voicereaderapp.domain.model.DocumentType
 import com.example.voicereaderapp.domain.model.ReadingDocument
+import com.example.voicereaderapp.ui.common.ReaderMode
+import com.example.voicereaderapp.ui.common.UnifiedReaderScreen
 import com.example.voicereaderapp.ui.common.VerticalReaderPanel
 import com.example.voicereaderapp.ui.index.Screen
 import com.example.voicereaderapp.ui.settings.SettingsViewModel
@@ -46,264 +50,101 @@ import java.io.File
 
 /**
  * PDF Viewer Screen with OCR overlay and TTS playback
- * UI styled to match ReaderScreen (Speechify-style)
+ * Uses UnifiedReaderScreen for UI, PDFViewerViewModel for logic
+ *
+ * Supports two modes:
+ * 1. New import: fileUri provided → perform OCR
+ * 2. Saved document: documentId provided → load from database
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PDFViewerScreen(
-    fileUri: Uri,
+    fileUri: Uri? = null,
+    documentId: String? = null,
     navController: NavController,
     viewModel: PDFViewerViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    val settingsViewModel: SettingsViewModel = hiltViewModel()
     val context = LocalContext.current
     var pdfFile by remember { mutableStateOf<File?>(null) }
-    var showControls by remember { mutableStateOf(false) }
-    var showSpeedSlider by remember { mutableStateOf(false) }
-    var showVoicePicker by remember { mutableStateOf(false) }
+    var documentTitle by remember { mutableStateOf<String?>(null) }
 
-    // Convert URI to File and perform OCR
+    // Handle new import (fileUri provided)
     LaunchedEffect(fileUri) {
-        val file = uriToFile(context, fileUri)
-        pdfFile = file
-        if (file != null) {
-            viewModel.performOCR(file)
+        if (fileUri != null) {
+            // Get original filename from URI
+            val originalFilename = getOriginalFilename(context, fileUri)
+            documentTitle = originalFilename
+
+            val file = uriToFile(context, fileUri)
+            pdfFile = file
+            if (file != null) {
+                // Pass original filename to ViewModel for saving
+                viewModel.performOCR(file, originalFilename)
+            }
+        }
+    }
+
+    // Handle saved document (documentId provided)
+    LaunchedEffect(documentId) {
+        if (documentId != null) {
+            viewModel.loadSavedDocument(documentId)
+        }
+    }
+
+    // Calculate progress for slider (time-based with word timings)
+    val progress = remember(uiState.wordTimings, uiState.currentWordIndex) {
+        if (uiState.wordTimings.isNotEmpty() && uiState.currentWordIndex >= 0) {
+            uiState.currentWordIndex.toFloat() / uiState.wordTimings.size
+        } else {
+            0f
         }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-
-        // ==========================
-        // BACKGROUND
-        // ==========================
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.surface)
-        )
-
-        // =============================
-        // SPEECHIFY-STYLE TOP BAR
-        // =============================
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 50.dp)
-        ) {
-
-            // BACK BUTTON (left)
-            IconButton(
-                onClick = { navController.popBackStack() },
-                modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .padding(start = 16.dp)
-                    .size(44.dp)
-                    .background(
-                        MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-                        CircleShape
-                    )
-            ) {
-                Icon(
-                    Icons.Default.ArrowBack,
-                    contentDescription = "Back",
-                    tint = MaterialTheme.colorScheme.onSurface
+        UnifiedReaderScreen(
+            title = uiState.documentTitle ?: documentTitle?.removeSuffix(".pdf")?.removeSuffix(".PDF") ?: "PDF Document",
+            mode = ReaderMode.PDF,
+            content = {
+                // PDF content with OCR text display
+                PDFReaderContent(
+                    ocrText = uiState.ocrText ?: "Performing OCR...",
+                    currentWordIndex = uiState.currentWordIndex
                 )
-            }
-
-            // TITLE (center)
-            Text(
-                text = "PDF Reader",
-                style = MaterialTheme.typography.titleMedium.copy(
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 24.sp
-                ),
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                modifier = Modifier.align(Alignment.Center)
-            )
-
-            // SETTINGS BUTTON (right)
-            IconButton(
-                onClick = {
-                    showControls = true
-                    showSpeedSlider = false
-                    showVoicePicker = false
-                },
-                modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .padding(end = 16.dp)
-                    .size(44.dp)
-                    .background(
-                        MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-                        CircleShape
-                    )
-            ) {
-                Icon(
-                    Icons.Default.Settings,
-                    contentDescription = "Settings",
-                    tint = MaterialTheme.colorScheme.onSurface
-                )
-            }
-        }
-
-        // ==========================
-        // CONTENT BOX (rounded corners)
-        // ==========================
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .fillMaxHeight(0.88f)
-                .align(Alignment.BottomCenter),
-            shape = RoundedCornerShape(topStart = 36.dp, topEnd = 36.dp),
-            tonalElevation = 6.dp,
-            color = Color.White
-        ) {
-            PDFReaderContent(
-                ocrText = uiState.ocrText ?: "Performing OCR...",
-                ocrWords = uiState.ocrWords,
-                currentWordIndex = uiState.currentWordIndex,
-                isPlaying = uiState.isPlaying,
-                isLoading = uiState.isOCRProcessing || uiState.isGeneratingAudio,
-                audioReady = uiState.audioBase64 != null,
-                onPlayPause = {
-                    if (uiState.audioBase64 == null) {
-                        viewModel.generateSpeech()
+            },
+            progress = progress,
+            isPlaying = uiState.isPlaying,
+            isLoading = uiState.isOCRProcessing || uiState.isGeneratingAudio,
+            playbackSpeed = uiState.playbackSpeed,
+            selectedVoice = uiState.selectedSpeaker,
+            onPlayPause = {
+                if (uiState.audioBase64 == null) {
+                    viewModel.generateSpeech()
+                } else {
+                    if (uiState.isPlaying) {
+                        viewModel.pauseAudio()
                     } else {
-                        if (uiState.isPlaying) {
-                            viewModel.pauseAudio()
+                        if (uiState.currentPlaybackPosition == 0L) {
+                            viewModel.playAudio()
                         } else {
-                            if (uiState.currentPlaybackPosition == 0L) {
-                                viewModel.playAudio()
-                            } else {
-                                viewModel.resumeAudio()
-                            }
-                        }
-                    }
-                },
-                onRewind = {
-                    // TODO: Implement rewind by seeking in audio
-                },
-                onForward = {
-                    // TODO: Implement forward by seeking in audio
-                },
-                onScrub = { fraction ->
-                    // TODO: Implement scrubbing
-                }
-            )
-        }
-
-        // ==========================
-        // SETTINGS PANEL (right side)
-        // ==========================
-        if (showControls) {
-            Box(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .width(90.dp)
-                    .align(Alignment.CenterEnd)
-                    .offset(x = (-5).dp, y = (-200).dp)
-            ) {
-                VerticalReaderPanel(
-                    speed = uiState.playbackSpeed,
-                    onSpeedChange = { viewModel.setPlaybackSpeed(it) },
-                    selectedVoice = uiState.selectedSpeaker,
-                    onSelectVoice = { showVoicePicker = true },
-                    onClickSpeed = {
-                        showSpeedSlider = true
-                        showVoicePicker = false
-                    },
-                    onClickVoice = {
-                        showVoicePicker = true
-                        showSpeedSlider = false
-                    },
-                    onClose = {
-                        showControls = false
-                        showSpeedSlider = false
-                        showVoicePicker = false
-                    }
-                )
-            }
-        }
-
-        // Speed Slider Dialog
-        if (showSpeedSlider) {
-            Surface(
-                modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .padding(end = 80.dp)
-                    .offset(y = (-250).dp)
-                    .width(160.dp),
-                shape = RoundedCornerShape(16.dp),
-                tonalElevation = 4.dp
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text("Speed", fontWeight = FontWeight.Bold)
-                    Slider(
-                        value = uiState.playbackSpeed,
-                        onValueChange = { viewModel.setPlaybackSpeed(it) },
-                        valueRange = 0.5f..2.0f
-                    )
-                    Text("${String.format("%.1f", uiState.playbackSpeed)}x")
-                }
-            }
-        }
-
-        // Voice Picker Dialog
-        if (showVoicePicker) {
-            Surface(
-                modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .padding(end = 100.dp)
-                    .offset(y = (-170).dp)
-                    .width(180.dp)
-                    .wrapContentHeight(),
-                shape = RoundedCornerShape(16.dp),
-                tonalElevation = 4.dp
-            ) {
-                Column(Modifier.padding(16.dp)) {
-                    Text("Voices", fontWeight = FontWeight.Bold)
-
-                    listOf(
-                        "matt" to "https://randomuser.me/api/portraits/men/1.jpg",
-                        "sarah" to "https://randomuser.me/api/portraits/women/2.jpg",
-                        "emma" to "https://randomuser.me/api/portraits/women/4.jpg"
-                    ).forEach { (speaker, url) ->
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    viewModel.setSpeaker(speaker)
-                                    showVoicePicker = false
-                                }
-                                .padding(vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            AsyncImage(
-                                model = url,
-                                contentDescription = "Voice",
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .clip(CircleShape)
-                            )
-                            Text(
-                                " ${speaker.capitalize()}",
-                                modifier = Modifier.padding(start = 8.dp),
-                                color = if (speaker == uiState.selectedSpeaker)
-                                    MaterialTheme.colorScheme.primary
-                                else
-                                    MaterialTheme.colorScheme.onSurface
-                            )
+                            viewModel.resumeAudio()
                         }
                     }
                 }
-            }
-        }
+            },
+            onRewind = {
+                viewModel.rewind()
+            },
+            onForward = {
+                viewModel.forward()
+            },
+            onSeek = { fraction ->
+                viewModel.seekToFraction(fraction)
+            },
+            onSpeedChange = { viewModel.setPlaybackSpeed(it) },
+            onVoiceChange = { viewModel.setSpeaker(it) },
+            onBack = { navController.popBackStack() }
+        )
 
         // Error Snackbar
         if (uiState.error != null) {
@@ -324,20 +165,13 @@ fun PDFViewerScreen(
 }
 
 /**
- * PDF Reader content with OCR text display (ReaderScreen-style)
+ * PDF Reader content with OCR text display
+ * Simplified version - controls are handled by UnifiedReaderScreen
  */
 @Composable
-fun PDFReaderContent(
+private fun PDFReaderContent(
     ocrText: String,
-    ocrWords: List<OCRWord>,
-    currentWordIndex: Int,
-    isPlaying: Boolean,
-    isLoading: Boolean,
-    audioReady: Boolean,
-    onPlayPause: () -> Unit,
-    onRewind: () -> Unit,
-    onForward: () -> Unit,
-    onScrub: (Float) -> Unit
+    currentWordIndex: Int
 ) {
     val words = remember(ocrText) { ocrText.split(Regex("\\s+")) }
     val scrollState = rememberLazyListState()
@@ -345,154 +179,44 @@ fun PDFReaderContent(
     // Auto-scroll when reading
     LaunchedEffect(currentWordIndex) {
         if (currentWordIndex >= 0 && currentWordIndex < words.size) {
-            val lineIndex = (currentWordIndex / 6).coerceAtLeast(0)
+            val lineIndex = (currentWordIndex / 20).coerceAtLeast(0)
             scrollState.animateScrollToItem(lineIndex)
         }
     }
 
-    Column(
+    LazyColumn(
+        state = scrollState,
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Transparent)
-            .padding(horizontal = 20.dp)
-            .padding(top = 24.dp)
+            .padding(horizontal = 16.dp)
     ) {
+        itemsIndexed(words.chunked(20)) { chunkIndex, chunk ->
+            val startIndex = chunkIndex * 20
 
-        // Scrollable text area with word highlighting
-        LazyColumn(
-            state = scrollState,
-            modifier = Modifier
-                .weight(1f)
-                .padding(bottom = 36.dp)
-        ) {
-            if (isLoading) {
-                item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(32.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator()
-                    }
-                }
-            } else {
-                itemsIndexed(words.chunked(6)) { chunkIndex, chunk ->
-                    val startIndex = chunkIndex * 6
-
-                    Row(Modifier.padding(vertical = 4.dp)) {
-                        chunk.forEachIndexed { i, word ->
-                            val globalIndex = startIndex + i
-
-                            val highlight = globalIndex == currentWordIndex
-                            Text(
-                                text = "$word ",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = if (highlight)
-                                    MaterialTheme.colorScheme.primary
-                                else
-                                    MaterialTheme.colorScheme.onBackground,
-                                fontWeight = if (highlight) FontWeight.Bold else FontWeight.Normal
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        // Scrubber (Progress Bar)
-        if (!isLoading && words.isNotEmpty()) {
-            Slider(
-                value = if (words.isNotEmpty() && currentWordIndex >= 0)
-                    currentWordIndex.toFloat() / words.size
-                else
-                    0f,
-                onValueChange = { fraction ->
-                    onScrub(fraction)
-                },
+            androidx.compose.foundation.layout.FlowRow(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 4.dp)
-            )
-        }
-
-        Spacer(Modifier.height(2.dp))
-
-        // Controls: Rewind | Play/Pause | Forward
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 24.dp),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-
-            // REWIND
-            IconButton(
-                onClick = onRewind,
-                enabled = audioReady && !isLoading,
-                modifier = Modifier
-                    .size(54.dp)
-                    .background(
-                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                        CircleShape
-                    )
+                    .padding(vertical = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Icon(
-                    Icons.Default.FastRewind,
-                    contentDescription = "Rewind",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(28.dp)
-                )
-            }
+                chunk.forEachIndexed { i, word ->
+                    val globalIndex = startIndex + i
+                    val highlight = globalIndex == currentWordIndex
 
-            Spacer(Modifier.width(30.dp))
-
-            // PLAY / PAUSE
-            Box(
-                modifier = Modifier
-                    .size(86.dp)
-                    .background(
-                        MaterialTheme.colorScheme.primary,
-                        CircleShape
-                    )
-                    .clickable(enabled = !isLoading) { onPlayPause() },
-                contentAlignment = Alignment.Center
-            ) {
-                if (isLoading) {
-                    CircularProgressIndicator(
-                        color = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.size(40.dp)
-                    )
-                } else {
-                    Icon(
-                        if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                        contentDescription = "Play/Pause",
-                        tint = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.size(52.dp)
+                    Text(
+                        text = word,
+                        style = MaterialTheme.typography.bodyLarge.copy(
+                            fontSize = 18.sp
+                        ),
+                        color = if (highlight)
+                            MaterialTheme.colorScheme.primary
+                        else
+                            MaterialTheme.colorScheme.onBackground,
+                        fontWeight = if (highlight) FontWeight.Bold else FontWeight.Normal
                     )
                 }
-            }
-
-            Spacer(Modifier.width(30.dp))
-
-            // FORWARD
-            IconButton(
-                onClick = onForward,
-                enabled = audioReady && !isLoading,
-                modifier = Modifier
-                    .size(54.dp)
-                    .background(
-                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                        CircleShape
-                    )
-            ) {
-                Icon(
-                    Icons.Default.FastForward,
-                    contentDescription = "Forward",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(28.dp)
-                )
             }
         }
     }
@@ -747,6 +471,32 @@ fun PDFWithOCROverlay(
             )
         }
     }
+}
+
+// Helper to get original filename from URI
+private fun getOriginalFilename(context: Context, uri: Uri): String {
+    var filename = "Document.pdf"
+
+    try {
+        // Try to get filename from ContentResolver
+        if (uri.scheme == "content") {
+            context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    if (nameIndex != -1) {
+                        filename = cursor.getString(nameIndex)
+                    }
+                }
+            }
+        } else if (uri.scheme == "file") {
+            // For file:// URIs, get the last path segment
+            filename = uri.lastPathSegment ?: "Document.pdf"
+        }
+    } catch (e: Exception) {
+        android.util.Log.e("PDFViewerScreen", "Failed to get original filename", e)
+    }
+
+    return filename
 }
 
 // Helper to convert Uri to File
