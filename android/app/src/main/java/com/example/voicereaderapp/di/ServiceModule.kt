@@ -1,5 +1,6 @@
 package com.example.voicereaderapp.di
 
+<<<<<<< HEAD
 import android.content.Context
 import com.example.voicereaderapp.data.service.TextToSpeechServiceImpl
 import com.example.voicereaderapp.domain.service.TextToSpeechService
@@ -9,6 +10,13 @@ import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
+=======
+import com.example.voicereaderapp.data.service.TextToSpeechServiceImpl
+import com.example.voicereaderapp.domain.service.TextToSpeechService
+import dagger.Binds
+import dagger.Module
+import dagger.hilt.InstallIn
+>>>>>>> origin/cd
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 

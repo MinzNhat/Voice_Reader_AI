@@ -75,6 +75,7 @@ object UseCaseModule {
     ): UpdateVoiceSettingsUseCase {
         return UpdateVoiceSettingsUseCase(repository)
     }
+<<<<<<< HEAD
 
     @Provides
     fun provideUpdateReadPositionUseCase(
@@ -89,4 +90,6 @@ object UseCaseModule {
     ): GetDocumentByIdUseCase {
         return GetDocumentByIdUseCase(repo)
     }
+=======
+>>>>>>> origin/cd
 }

@@ -38,7 +38,11 @@ class SettingsViewModel @Inject constructor(
     private val updateVoiceSettingsUseCase: UpdateVoiceSettingsUseCase
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(SettingsUiState())
+<<<<<<< HEAD
 
+=======
+    
+>>>>>>> origin/cd
     /**
      * Current UI state of the settings screen.
      */
