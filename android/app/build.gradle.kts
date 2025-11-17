@@ -51,6 +51,7 @@ dependencies {
     implementation(libs.androidx.compose.foundation.layout)
     implementation(libs.androidx.compose.ui.text)
     implementation(libs.androidx.material3)
+    implementation(libs.firebase.appdistribution.gradle)
     val cameraxVersion = "1.4.0"
 
     implementation("androidx.camera:camera-core:${cameraxVersion}")
@@ -85,6 +86,15 @@ dependencies {
 
     // DataStore
     implementation(libs.datastore.preferences)
+
+    // Networking
+    implementation("com.squareup.retrofit2:retrofit:2.9.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
+
+    // Coroutines for async operations
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 
     // Coroutines
     implementation(libs.kotlinx.coroutines.core)

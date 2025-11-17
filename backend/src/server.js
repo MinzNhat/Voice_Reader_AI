@@ -313,7 +313,7 @@ app.post("/tts", async (req, res) => {
         }
 
         // Default speaker if not provided
-        const speakerName = speaker || "nara"; // NAVER TTS Premium default voice
+        const speakerName = speaker || "matt"; // NAVER TTS Premium default voice
 
         // Call NAVER TTS Premium API
         const ttsResponse = await axios.post(

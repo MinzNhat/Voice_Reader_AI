@@ -5,6 +5,7 @@ import com.example.voicereaderapp.data.local.entity.toDomain
 import com.example.voicereaderapp.data.local.entity.toEntity
 import com.example.voicereaderapp.domain.model.ReadingDocument
 import com.example.voicereaderapp.domain.repository.DocumentRepository
+import com.google.firebase.appdistribution.gradle.ApiService
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
@@ -18,7 +19,8 @@ import javax.inject.Singleton
  */
 @Singleton
 class DocumentRepositoryImpl @Inject constructor(
-    private val documentDao: DocumentDao
+    private val documentDao: DocumentDao,
+    private val apiService: ApiService
 ) : DocumentRepository {
     /**
      * Retrieves all documents from local database.
