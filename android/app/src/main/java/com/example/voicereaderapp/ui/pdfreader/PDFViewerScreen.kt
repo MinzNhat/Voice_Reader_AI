@@ -6,20 +6,22 @@ import android.graphics.pdf.PdfRenderer
 import android.net.Uri
 import android.os.ParcelFileDescriptor
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.VolumeUp
-import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -27,18 +29,24 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import coil.compose.AsyncImage
 import com.example.voicereaderapp.data.remote.model.OCRWord
 import com.example.voicereaderapp.domain.model.DocumentType
 import com.example.voicereaderapp.domain.model.ReadingDocument
+import com.example.voicereaderapp.ui.common.VerticalReaderPanel
 import com.example.voicereaderapp.ui.index.Screen
+import com.example.voicereaderapp.ui.settings.SettingsViewModel
 import java.io.File
 
 
 /**
  * PDF Viewer Screen with OCR overlay and TTS playback
+ * UI styled to match ReaderScreen (Speechify-style)
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -48,8 +56,12 @@ fun PDFViewerScreen(
     viewModel: PDFViewerViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val settingsViewModel: SettingsViewModel = hiltViewModel()
     val context = LocalContext.current
     var pdfFile by remember { mutableStateOf<File?>(null) }
+    var showControls by remember { mutableStateOf(false) }
+    var showSpeedSlider by remember { mutableStateOf(false) }
+    var showVoicePicker by remember { mutableStateOf(false) }
 
     // Convert URI to File and perform OCR
     LaunchedEffect(fileUri) {
@@ -60,55 +72,105 @@ fun PDFViewerScreen(
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("PDF Reader") },
-                navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Default.ArrowBack, "Back")
-                    }
-                },
-                actions = {
-                    // OCR Button
-                    IconButton(
-                        onClick = {
-                            pdfFile?.let { viewModel.performOCR(it) }
-                        },
-                        enabled = !uiState.isOCRProcessing && pdfFile != null
-                    ) {
-                        if (uiState.isOCRProcessing) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(24.dp),
-                                strokeWidth = 2.dp
-                            )
-                        } else {
-                            Icon(Icons.Default.Search, "OCR")
-                        }
-                    }
+    Box(modifier = Modifier.fillMaxSize()) {
 
-                    // TTS Generate Button
-                    IconButton(
-                        onClick = { viewModel.generateSpeech() },
-                        enabled = uiState.ocrText != null && !uiState.isGeneratingAudio
-                    ) {
-                        if (uiState.isGeneratingAudio) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(24.dp),
-                                strokeWidth = 2.dp
-                            )
-                        } else {
-                            Icon(Icons.Default.VolumeUp, "Generate Speech")
-                        }
-                    }
-                }
+        // ==========================
+        // BACKGROUND
+        // ==========================
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.surface)
+        )
+
+        // =============================
+        // SPEECHIFY-STYLE TOP BAR
+        // =============================
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 50.dp)
+        ) {
+
+            // BACK BUTTON (left)
+            IconButton(
+                onClick = { navController.popBackStack() },
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .padding(start = 16.dp)
+                    .size(44.dp)
+                    .background(
+                        MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+                        CircleShape
+                    )
+            ) {
+                Icon(
+                    Icons.Default.ArrowBack,
+                    contentDescription = "Back",
+                    tint = MaterialTheme.colorScheme.onSurface
+                )
+            }
+
+            // TITLE (center)
+            Text(
+                text = "PDF Reader",
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 24.sp
+                ),
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                modifier = Modifier.align(Alignment.Center)
             )
-        },
-        bottomBar = {
-            if (uiState.audioBase64 != null) {
-                AudioControlBar(
-                    isPlaying = uiState.isPlaying,
-                    onPlayPause = {
+
+            // SETTINGS BUTTON (right)
+            IconButton(
+                onClick = {
+                    showControls = true
+                    showSpeedSlider = false
+                    showVoicePicker = false
+                },
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(end = 16.dp)
+                    .size(44.dp)
+                    .background(
+                        MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+                        CircleShape
+                    )
+            ) {
+                Icon(
+                    Icons.Default.Settings,
+                    contentDescription = "Settings",
+                    tint = MaterialTheme.colorScheme.onSurface
+                )
+            }
+        }
+
+        // ==========================
+        // CONTENT BOX (rounded corners)
+        // ==========================
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.88f)
+                .align(Alignment.BottomCenter),
+            shape = RoundedCornerShape(topStart = 36.dp, topEnd = 36.dp),
+            tonalElevation = 6.dp,
+            color = Color.White
+        ) {
+            PDFReaderContent(
+                ocrText = uiState.ocrText ?: "Performing OCR...",
+                ocrWords = uiState.ocrWords,
+                currentWordIndex = uiState.currentWordIndex,
+                isPlaying = uiState.isPlaying,
+                isLoading = uiState.isOCRProcessing || uiState.isGeneratingAudio,
+                audioReady = uiState.audioBase64 != null,
+                onPlayPause = {
+                    if (uiState.audioBase64 == null) {
+                        viewModel.generateSpeech()
+                    } else {
                         if (uiState.isPlaying) {
                             viewModel.pauseAudio()
                         } else {
@@ -118,95 +180,318 @@ fun PDFViewerScreen(
                                 viewModel.resumeAudio()
                             }
                         }
+                    }
+                },
+                onRewind = {
+                    // TODO: Implement rewind by seeking in audio
+                },
+                onForward = {
+                    // TODO: Implement forward by seeking in audio
+                },
+                onScrub = { fraction ->
+                    // TODO: Implement scrubbing
+                }
+            )
+        }
+
+        // ==========================
+        // SETTINGS PANEL (right side)
+        // ==========================
+        if (showControls) {
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .width(90.dp)
+                    .align(Alignment.CenterEnd)
+                    .offset(x = (-5).dp, y = (-200).dp)
+            ) {
+                VerticalReaderPanel(
+                    speed = uiState.playbackSpeed,
+                    onSpeedChange = { viewModel.setPlaybackSpeed(it) },
+                    selectedVoice = uiState.selectedSpeaker,
+                    onSelectVoice = { showVoicePicker = true },
+                    onClickSpeed = {
+                        showSpeedSlider = true
+                        showVoicePicker = false
                     },
-                    onStop = { viewModel.stopAudio() }
+                    onClickVoice = {
+                        showVoicePicker = true
+                        showSpeedSlider = false
+                    },
+                    onClose = {
+                        showControls = false
+                        showSpeedSlider = false
+                        showVoicePicker = false
+                    }
                 )
             }
         }
-    ) { padding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) {
-            // PDF with OCR Overlay
-            PDFWithOCROverlay(
-                pdfFile = pdfFile,
-                ocrWords = uiState.ocrWords,
-                currentWordIndex = uiState.currentWordIndex,
-                ocrImageWidth = uiState.ocrImageWidth,
-                ocrImageHeight = uiState.ocrImageHeight
-            )
 
-            // Error Snackbar
-            if (uiState.error != null) {
-                Snackbar(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(16.dp),
-                    action = {
-                        TextButton(onClick = { viewModel.clearError() }) {
-                            Text("Dismiss")
-                        }
-                    }
+        // Speed Slider Dialog
+        if (showSpeedSlider) {
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(end = 80.dp)
+                    .offset(y = (-250).dp)
+                    .width(160.dp),
+                shape = RoundedCornerShape(16.dp),
+                tonalElevation = 4.dp
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text(uiState.error!!)
+                    Text("Speed", fontWeight = FontWeight.Bold)
+                    Slider(
+                        value = uiState.playbackSpeed,
+                        onValueChange = { viewModel.setPlaybackSpeed(it) },
+                        valueRange = 0.5f..2.0f
+                    )
+                    Text("${String.format("%.1f", uiState.playbackSpeed)}x")
                 }
             }
         }
-    }
 
-    Button(
-        onClick = {
-            uiState.ocrText?.let { text ->
-                val newDoc = ReadingDocument(
-                    id = "doc_${System.currentTimeMillis()}",
-                    title = "PDF Document",
-                    content = text,
-                    type = DocumentType.PDF,
-                    createdAt = System.currentTimeMillis(),
-                    lastReadPosition = 0
-                )
-                // Inject DocumentRepository and save
-                // Then navigate to Reader
-                navController.navigate(Screen.Reader.createRoute(newDoc.id))
+        // Voice Picker Dialog
+        if (showVoicePicker) {
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(end = 100.dp)
+                    .offset(y = (-170).dp)
+                    .width(180.dp)
+                    .wrapContentHeight(),
+                shape = RoundedCornerShape(16.dp),
+                tonalElevation = 4.dp
+            ) {
+                Column(Modifier.padding(16.dp)) {
+                    Text("Voices", fontWeight = FontWeight.Bold)
+
+                    listOf(
+                        "matt" to "https://randomuser.me/api/portraits/men/1.jpg",
+                        "sarah" to "https://randomuser.me/api/portraits/women/2.jpg",
+                        "emma" to "https://randomuser.me/api/portraits/women/4.jpg"
+                    ).forEach { (speaker, url) ->
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    viewModel.setSpeaker(speaker)
+                                    showVoicePicker = false
+                                }
+                                .padding(vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            AsyncImage(
+                                model = url,
+                                contentDescription = "Voice",
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                            )
+                            Text(
+                                " ${speaker.capitalize()}",
+                                modifier = Modifier.padding(start = 8.dp),
+                                color = if (speaker == uiState.selectedSpeaker)
+                                    MaterialTheme.colorScheme.primary
+                                else
+                                    MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+                }
             }
         }
-    ) {
-        Text("Start Reading")
+
+        // Error Snackbar
+        if (uiState.error != null) {
+            Snackbar(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(16.dp),
+                action = {
+                    TextButton(onClick = { viewModel.clearError() }) {
+                        Text("Dismiss")
+                    }
+                }
+            ) {
+                Text(uiState.error!!)
+            }
+        }
     }
 }
 
 /**
- * Audio control bar for TTS playback
+ * PDF Reader content with OCR text display (ReaderScreen-style)
  */
 @Composable
-fun AudioControlBar(
+fun PDFReaderContent(
+    ocrText: String,
+    ocrWords: List<OCRWord>,
+    currentWordIndex: Int,
     isPlaying: Boolean,
+    isLoading: Boolean,
+    audioReady: Boolean,
     onPlayPause: () -> Unit,
-    onStop: () -> Unit
+    onRewind: () -> Unit,
+    onForward: () -> Unit,
+    onScrub: (Float) -> Unit
 ) {
-    Surface(
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        modifier = Modifier.fillMaxWidth()
+    val words = remember(ocrText) { ocrText.split(Regex("\\s+")) }
+    val scrollState = rememberLazyListState()
+
+    // Auto-scroll when reading
+    LaunchedEffect(currentWordIndex) {
+        if (currentWordIndex >= 0 && currentWordIndex < words.size) {
+            val lineIndex = (currentWordIndex / 6).coerceAtLeast(0)
+            scrollState.animateScrollToItem(lineIndex)
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Transparent)
+            .padding(horizontal = 20.dp)
+            .padding(top = 24.dp)
     ) {
+
+        // Scrollable text area with word highlighting
+        LazyColumn(
+            state = scrollState,
+            modifier = Modifier
+                .weight(1f)
+                .padding(bottom = 36.dp)
+        ) {
+            if (isLoading) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator()
+                    }
+                }
+            } else {
+                itemsIndexed(words.chunked(6)) { chunkIndex, chunk ->
+                    val startIndex = chunkIndex * 6
+
+                    Row(Modifier.padding(vertical = 4.dp)) {
+                        chunk.forEachIndexed { i, word ->
+                            val globalIndex = startIndex + i
+
+                            val highlight = globalIndex == currentWordIndex
+                            Text(
+                                text = "$word ",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = if (highlight)
+                                    MaterialTheme.colorScheme.primary
+                                else
+                                    MaterialTheme.colorScheme.onBackground,
+                                fontWeight = if (highlight) FontWeight.Bold else FontWeight.Normal
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // Scrubber (Progress Bar)
+        if (!isLoading && words.isNotEmpty()) {
+            Slider(
+                value = if (words.isNotEmpty() && currentWordIndex >= 0)
+                    currentWordIndex.toFloat() / words.size
+                else
+                    0f,
+                onValueChange = { fraction ->
+                    onScrub(fraction)
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 4.dp)
+            )
+        }
+
+        Spacer(Modifier.height(2.dp))
+
+        // Controls: Rewind | Play/Pause | Forward
         Row(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 24.dp),
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Stop Button
-            IconButton(onClick = onStop) {
-                Icon(Icons.Default.Stop, "Stop")
+
+            // REWIND
+            IconButton(
+                onClick = onRewind,
+                enabled = audioReady && !isLoading,
+                modifier = Modifier
+                    .size(54.dp)
+                    .background(
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                        CircleShape
+                    )
+            ) {
+                Icon(
+                    Icons.Default.FastRewind,
+                    contentDescription = "Rewind",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(28.dp)
+                )
             }
 
-            Spacer(modifier = Modifier.width(16.dp))
+            Spacer(Modifier.width(30.dp))
 
-            // Play/Pause Button
-            FloatingActionButton(onClick = onPlayPause) {
+            // PLAY / PAUSE
+            Box(
+                modifier = Modifier
+                    .size(86.dp)
+                    .background(
+                        MaterialTheme.colorScheme.primary,
+                        CircleShape
+                    )
+                    .clickable(enabled = !isLoading) { onPlayPause() },
+                contentAlignment = Alignment.Center
+            ) {
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(40.dp)
+                    )
+                } else {
+                    Icon(
+                        if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                        contentDescription = "Play/Pause",
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(52.dp)
+                    )
+                }
+            }
+
+            Spacer(Modifier.width(30.dp))
+
+            // FORWARD
+            IconButton(
+                onClick = onForward,
+                enabled = audioReady && !isLoading,
+                modifier = Modifier
+                    .size(54.dp)
+                    .background(
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                        CircleShape
+                    )
+            ) {
                 Icon(
-                    imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                    contentDescription = if (isPlaying) "Pause" else "Play"
+                    Icons.Default.FastForward,
+                    contentDescription = "Forward",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(28.dp)
                 )
             }
         }
