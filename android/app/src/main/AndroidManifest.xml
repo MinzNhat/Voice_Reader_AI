@@ -41,6 +41,12 @@
             </intent-filter>
         </activity>
 
+        <!-- cho live reader -->
+        <service
+            android:name=".ui.livereader.overlay.LiveOverlayService"
+            android:enabled="true"
+            android:exported="false" />
+
     </application>
 
 </manifest>

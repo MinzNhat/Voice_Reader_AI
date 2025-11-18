@@ -2,7 +2,10 @@
 
 package com.example.voicereaderapp.ui.index
 
+import android.content.Intent
 import android.net.Uri
+import android.provider.Settings
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -41,6 +44,9 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
 import com.example.voicereaderapp.domain.model.DocumentType
@@ -49,6 +55,7 @@ import com.example.voicereaderapp.ui.pdfreader.PdfReaderScreen
 import com.example.voicereaderapp.ui.reader.ReaderScreen
 import com.example.voicereaderapp.ui.scanner.ScannerScreen
 import com.example.voicereaderapp.R
+import com.example.voicereaderapp.ui.livereader.overlay.LiveOverlayService
 import com.example.voicereaderapp.ui.pdfreader.DocumentPickerScreen
 import com.example.voicereaderapp.ui.pdfreader.PDFViewerScreen
 
@@ -150,6 +157,36 @@ fun IndexScreen(
 ) {
     val documents by viewModel.documents.collectAsState()
     val context = LocalContext.current
+
+    // ---------------- Bắt đầu khởi tạo các biến cho livereader -----------------------------
+    var isLiveScanEnabled by remember { mutableStateOf(false) }
+    var wasPermissionRequested by remember { mutableStateOf(false) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    val overlayPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) {  }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                if (wasPermissionRequested) {
+                    wasPermissionRequested = false
+                    val hasPermission = Settings.canDrawOverlays(context)
+                    if (hasPermission) {
+                        LiveOverlayService.start(context, "Live Reader đã được kích hoạt.")
+                        isLiveScanEnabled = true
+                    }
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+    // ---------------- Kết thúc khởi tạo các biến cho livereader ----------------------------
+
 
     // State for rename dialog
     var showRenameDialog by remember { mutableStateOf(false) }
@@ -278,6 +315,28 @@ fun IndexScreen(
                                 }
                                 else -> { /* future: open other apps*/
                                 }
+                            }
+                        },
+                        isLiveScanEnabled = isLiveScanEnabled,
+                        onLiveScanToggle = { isChecked ->
+                            if (isChecked) {
+                                // Người dùng muốn BẬT
+                                val hasPermission = Settings.canDrawOverlays(context)
+                                if (hasPermission) {
+                                    LiveOverlayService.start(context, "Live Reader đã được kích hoạt.")
+                                    isLiveScanEnabled = true
+                                } else {
+                                    wasPermissionRequested = true
+                                    val intent = Intent(
+                                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                        Uri.parse("package:${context.packageName}")
+                                    )
+                                    overlayPermissionLauncher.launch(intent)
+                                }
+                            } else {
+                                // Người dùng muốn TẮT
+                                LiveOverlayService.stop(context)
+                                isLiveScanEnabled = false
                             }
                         }
                     )
@@ -724,9 +783,10 @@ fun RecentDocCard(
 @Composable
 fun ImportSectionCard(
     sources: List<ImportSource>,
-    onImportClick: (String) -> Unit
+    onImportClick: (String) -> Unit,
+    isLiveScanEnabled: Boolean,
+    onLiveScanToggle: (Boolean) -> Unit
 ) {
-    var isLiveScanEnabled by remember { mutableStateOf(false) }
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -791,7 +851,7 @@ fun ImportSectionCard(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { isLiveScanEnabled = !isLiveScanEnabled }
+                    .clickable { onLiveScanToggle(!isLiveScanEnabled) }
                     .padding(vertical = 4.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
@@ -840,7 +900,7 @@ fun ImportSectionCard(
 
                 Switch(
                     checked = isLiveScanEnabled,
-                    onCheckedChange = { isLiveScanEnabled = it },
+                    onCheckedChange = onLiveScanToggle,
                     colors = SwitchDefaults.colors(
                         checkedThumbColor = Color.White,
                         checkedTrackColor = Color(0xFF10B981),

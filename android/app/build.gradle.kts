@@ -109,4 +109,7 @@ dependencies {
     // Debug
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
+
+    // live screen usage
+    implementation("androidx.lifecycle:lifecycle-service:2.6.2")
 }
