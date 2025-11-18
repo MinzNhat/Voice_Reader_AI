@@ -25,7 +25,9 @@ fun NoteTakingOverlay(
     val allNotes by noteViewModel.notes.collectAsState()
 
     Box(
-        modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.5f)),
+        modifier = Modifier
+            .fillMaxSize(),
+            // .background(Color.Black.copy(alpha = 0.5f)),
         contentAlignment = Alignment.Center
     ) {
         Card(
