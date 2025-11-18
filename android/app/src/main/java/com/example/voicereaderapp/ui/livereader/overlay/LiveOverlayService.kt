@@ -1,9 +1,13 @@
 package com.example.voicereaderapp.ui.livereader.overlay
 
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.graphics.PixelFormat
+import android.os.Build
 import android.os.IBinder
 import android.view.WindowManager
 import androidx.compose.ui.platform.ComposeView
@@ -22,6 +26,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.core.app.NotificationCompat
+import com.example.voicereaderapp.R
 
 class LiveOverlayService : LifecycleService() {
     private val TAG = "LiveOverlayServiceDebug"
@@ -80,6 +86,33 @@ class LiveOverlayService : LifecycleService() {
                 }
             }
         }
+
+
+        startForeground(NOTIFICATION_ID, createNotification())
+    }
+
+    private fun createNotification(): Notification {
+        // Bắt buộc phải tạo Notification Channel cho Android 8 (API 26) trở lên
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val serviceChannel = NotificationChannel(
+                CHANNEL_ID,
+                "Live Reader Service Channel",
+                NotificationManager.IMPORTANCE_LOW // Dùng IMPORTANCE_LOW để không có âm thanh
+            )
+            val manager = getSystemService(NotificationManager::class.java)
+            manager.createNotificationChannel(serviceChannel)
+        }
+
+        // Tạo PendingIntent để khi người dùng nhấn vào thông báo sẽ mở lại app
+        // val notificationIntent = Intent(this, YourMainActivity::class.java)
+        // val pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE)
+
+        return NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("VoiceReader is Active")
+            .setContentText("Live Scan is running in the background.")
+            .setSmallIcon(R.drawable.logo_2) // <-- THAY BẰNG ICON CỦA BẠN
+            // .setContentIntent(pendingIntent)
+            .build()
     }
 
     private fun initializeLayoutParams() {
@@ -224,6 +257,7 @@ class LiveOverlayService : LifecycleService() {
         edgeBarView = null
         expandedOverlayView = null
         micView = null // ✅ Dọn dẹp mic view
+        stopForeground(true)
     }
 
     companion object {
@@ -231,12 +265,19 @@ class LiveOverlayService : LifecycleService() {
         private const val ACTION_STOP = "com.example.voicereaderapp.ACTION_STOP"
         private const val EXTRA_TEXT_TO_READ = "EXTRA_TEXT_TO_READ"
 
+        private const val NOTIFICATION_ID = 3636 // ID duy nhất cho thông báo
+        private const val CHANNEL_ID = "LiveReaderChannel"
+
         fun start(context: Context, textToRead: String) {
             val intent = Intent(context, LiveOverlayService::class.java).apply {
                 action = ACTION_START
                 putExtra(EXTRA_TEXT_TO_READ, textToRead)
             }
-            context.startService(intent)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(intent)
+            } else {
+                context.startService(intent)
+            }
         }
 
         fun stop(context: Context) {
