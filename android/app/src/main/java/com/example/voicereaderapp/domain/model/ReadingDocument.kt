@@ -10,6 +10,10 @@ package com.example.voicereaderapp.domain.model
  * @property type Type of document (PDF, IMAGE, LIVE_SCREEN)
  * @property createdAt Timestamp when the document was added
  * @property lastReadPosition Last reading position in the document
+ * @property voiceId Selected voice ID for this document (null = use global settings)
+ * @property language Selected language for this document (null = use global settings)
+ * @property speed Playback speed for this document (null = use global settings)
+ * @property audioCacheJson Cached TTS audio map: { "voiceId_language": { "audio": "base64", "timings": [...] } }
  */
 data class ReadingDocument(
     val id: String,
@@ -17,7 +21,11 @@ data class ReadingDocument(
     val content: String,
     val type: DocumentType,
     val createdAt: Long,
-    val lastReadPosition: Int = 0
+    val lastReadPosition: Int = 0,
+    val voiceId: String? = null,
+    val language: String? = null,
+    val speed: Float? = null,
+    val audioCacheJson: String? = null  // Stores multiple audio caches per voice
 )
 
 /**

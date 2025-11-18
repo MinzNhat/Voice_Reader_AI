@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -160,8 +161,18 @@ fun IndexScreen(
     val settingsViewModel: com.example.voicereaderapp.ui.settings.SettingsViewModel = hiltViewModel()
     val settingsState by settingsViewModel.uiState.collectAsState()
 
-    // File picker để import PDF
-    val filePickerLauncher = rememberLauncherForActivityResult(
+    // File picker for all document types (PDF, DOCX, Images)
+    val allFilesPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let { selectedUri ->
+            // Navigate to PDF Viewer with OCR processing (works for all file types)
+            navController.navigate(Screen.PDFViewer.createRoute(selectedUri.toString()))
+        }
+    }
+
+    // File picker for Images only (for Drive/Albums)
+    val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         uri?.let { selectedUri ->
@@ -171,8 +182,8 @@ fun IndexScreen(
     }
 
     val importSources = listOf(
-        ImportSource("Drive", Icons.Default.Cloud, Color(0xFF3B82F6)),
-        ImportSource("Files", Icons.Default.Folder, Color(0xFF6B7280)),
+        ImportSource(name = "Albums", Icons.Default.PhotoLibrary, tint = Color(0xFF3B82F6)),
+        ImportSource(name ="Files", Icons.Default.Folder, tint = Color(0xFFFFDB33)),
 //        ImportSource("Gmail", Icons.Default.Email, Color(0xFFEF4444)),
 //        ImportSource("Messenger", Icons.Default.Message, Color(0xFF0EA5E9))
     )
@@ -257,7 +268,14 @@ fun IndexScreen(
                         sources = importSources,
                         onImportClick = { name ->
                             when (name) {
-                                "Drive", "Files" -> filePickerLauncher.launch("application/pdf")
+                                "Files" -> {
+                                    // Files: Accept PDF, DOCX, and Images
+                                    allFilesPickerLauncher.launch("*/*")
+                                }
+                                "Albums" -> {
+                                    // Albums: Accept Images only
+                                    imagePickerLauncher.launch("image/*")
+                                }
                                 else -> { /* future: open other apps*/
                                 }
                             }
@@ -296,11 +314,19 @@ fun IndexScreen(
             com.example.voicereaderapp.ui.settings.GlobalSettingsSheet(
                 speed = settingsState.settings.speed,
                 selectedVoice = settingsState.settings.voiceId.ifEmpty { "matt" },
+                selectedLanguage = settingsState.settings.language,
+                selectedTheme = settingsState.settings.theme,
                 onSpeedChange = {
                     settingsViewModel.updateSpeed(it)
                     settingsViewModel.saveSettings()
                 },
                 onVoiceChange = { settingsViewModel.updateVoice(it) },
+                onVoiceAndLanguageChange = { voiceId, language ->
+                    settingsViewModel.updateVoiceAndLanguage(voiceId, language)
+                },
+                onThemeChange = { theme ->
+                    settingsViewModel.updateTheme(theme)
+                },
                 onDismiss = { showGlobalSettings = false }
             )
         }
@@ -366,7 +392,7 @@ fun GreetingCard() {
                 clip = false
             ),
         shape = RoundedCornerShape(20.dp),
-        color = Color(0xFFEEF5FC)
+        color = MaterialTheme.colorScheme.surfaceVariant
     ) {
         Column(
             modifier = Modifier
@@ -376,13 +402,14 @@ fun GreetingCard() {
                 text = greeting,   // ⬅ dùng greeting động
                 style = MaterialTheme.typography.titleMedium.copy(
                     fontWeight = FontWeight.Bold
-                )
+                ),
+                color = MaterialTheme.colorScheme.onSurface
             )
             Spacer(Modifier.height(4.dp))
             Text(
                 text = "Ready to keep listening to your documents?",
                 style = MaterialTheme.typography.bodyMedium,
-                color = Color(0xFF4B5563)
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
@@ -490,7 +517,7 @@ fun ContinueListeningCard(
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
-        color = Color(0xFFF8FAFF)
+        color = MaterialTheme.colorScheme.surfaceVariant
     ) {
         Column(
             modifier = Modifier.padding(16.dp)
@@ -499,7 +526,8 @@ fun ContinueListeningCard(
                 "Continue Listening",
                 style = MaterialTheme.typography.titleMedium.copy(
                     fontWeight = FontWeight.SemiBold
-                )
+                ),
+                color = MaterialTheme.colorScheme.onSurface
             )
             Spacer(Modifier.height(12.dp))
 
@@ -507,7 +535,7 @@ fun ContinueListeningCard(
                 Text(
                     text = "No documents yet. Try importing a file!",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = Color(0xFF9CA3AF)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             } else {
                 LazyRow(
@@ -554,7 +582,7 @@ fun RecentDocCard(
                 .fillMaxWidth()
                 .height(150.dp),
             shape = RoundedCornerShape(20.dp),
-            color = Color.White
+            color = MaterialTheme.colorScheme.onPrimary
         ) {
             Box(
                 modifier = Modifier
@@ -576,15 +604,24 @@ fun RecentDocCard(
                             modifier = Modifier
                                 .size(40.dp)
                                 .background(
-                                    color = Color(0xFFE5EDFF),
+                                    color = if (document.type === DocumentType.IMAGE)
+                                        Color(0xFFFFE5E5)
+                                    else
+                                        Color(0xFFE5EDFF),
                                     shape = RoundedCornerShape(12.dp)
                                 ),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = Icons.Outlined.Description,
+                                imageVector = if (document.type === DocumentType.IMAGE)
+                                    Icons.Outlined.Image
+                                else
+                                    Icons.Outlined.Description,
                                 contentDescription = null,
-                                tint = Color(0xFF1D4ED8)
+                                tint = if (document.type === DocumentType.IMAGE)
+                                    Color(0xFFE53935)
+                                else
+                                    Color(0xFF1D4ED8)
                             )
                         }
 
@@ -597,7 +634,7 @@ fun RecentDocCard(
                                 Icon(
                                     imageVector = Icons.Default.MoreVert,
                                     contentDescription = "Options",
-                                    tint = Color(0xFF6B7280)
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
 
@@ -635,13 +672,13 @@ fun RecentDocCard(
                                 .fillMaxWidth()
                                 .height(4.dp)
                                 .clip(RoundedCornerShape(50))
-                                .background(Color(0xFFE5E7EB))
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
                         ) {
                             Box(
                                 modifier = Modifier
                                     .fillMaxHeight()
                                     .fillMaxWidth(progress)
-                                    .background(Color(0xFFEF4444))
+                                    .background(color = Color.Red)
                             )
                         }
                     }
@@ -656,6 +693,7 @@ fun RecentDocCard(
             style = MaterialTheme.typography.bodyMedium.copy(
                 fontWeight = FontWeight.SemiBold
             ),
+            color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
@@ -672,7 +710,7 @@ fun RecentDocCard(
         Text(
             text = "Progress ${(progress * 100).toInt()}%",
             style = MaterialTheme.typography.labelSmall,
-            color = Color(0xFF6B7280),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             modifier = Modifier.fillMaxWidth()
         )
@@ -688,10 +726,12 @@ fun ImportSectionCard(
     sources: List<ImportSource>,
     onImportClick: (String) -> Unit
 ) {
+    var isLiveScanEnabled by remember { mutableStateOf(false) }
+
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
-        color = Color(0xFFF8FAFF)
+        color = MaterialTheme.colorScheme.surfaceVariant
     ) {
         Column(
             modifier = Modifier.padding(16.dp)
@@ -700,7 +740,8 @@ fun ImportSectionCard(
                 "Import & Listen",
                 style = MaterialTheme.typography.titleMedium.copy(
                     fontWeight = FontWeight.SemiBold
-                )
+                ),
+                color = MaterialTheme.colorScheme.onSurface
             )
             Spacer(Modifier.height(12.dp))
 
@@ -733,10 +774,80 @@ fun ImportSectionCard(
                         Spacer(Modifier.height(6.dp))
                         Text(
                             text = source.name,
-                            style = MaterialTheme.typography.labelMedium
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     }
                 }
+            }
+
+            // Live Scan Toggle
+            Spacer(Modifier.height(16.dp))
+            HorizontalDivider(
+                modifier = Modifier.padding(vertical = 8.dp),
+                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f)
+            )
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { isLiveScanEnabled = !isLiveScanEnabled }
+                    .padding(vertical = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .background(
+                                if (isLiveScanEnabled)
+                                    Color(0xFF10B981).copy(alpha = 0.12f)
+                                else
+                                    Color(0xFF6B7280).copy(alpha = 0.12f),
+                                CircleShape
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Visibility,
+                            contentDescription = "Live Scan",
+                            tint = if (isLiveScanEnabled)
+                                Color(0xFF10B981)
+                            else
+                                Color(0xFF6B7280)
+                        )
+                    }
+
+                    Column {
+                        Text(
+                            text = "Live Scan",
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontWeight = FontWeight.Medium
+                            ),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "Scan text in other apps",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                Switch(
+                    checked = isLiveScanEnabled,
+                    onCheckedChange = { isLiveScanEnabled = it },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Color.White,
+                        checkedTrackColor = Color(0xFF10B981),
+                        uncheckedThumbColor = Color.White,
+                        uncheckedTrackColor = Color(0xFF9CA3AF)
+                    )
+                )
             }
         }
     }

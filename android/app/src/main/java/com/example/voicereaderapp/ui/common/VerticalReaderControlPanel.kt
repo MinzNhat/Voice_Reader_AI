@@ -80,13 +80,15 @@ fun VerticalReaderPanel(
                 contentDescription = "Close",
                 modifier = Modifier
                     .size(26.dp)
-                    .clickable { onClose() }
+                    .clickable { onClose() },
+                tint = MaterialTheme.colorScheme.onSurface
             )
 
             // Speed label (1.0x)
             Text(
                 "${String.format("%.1f", speed)}x",
                 style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier
                     .onGloballyPositioned { speedIconY = it.positionInRoot().y }
                     .clickable { onClickSpeed() }
@@ -99,7 +101,8 @@ fun VerticalReaderPanel(
                 modifier = Modifier
                     .size(26.dp)
                     .onGloballyPositioned { voiceIconY = it.positionInRoot().y }
-                    .clickable { onClickVoice()}
+                    .clickable { onClickVoice()},
+                tint = MaterialTheme.colorScheme.onSurface
             )
 
             // Take Note icon
@@ -113,8 +116,18 @@ fun VerticalReaderPanel(
             )
 
             // Other icons (can be used for future features)
-            Icon(Icons.Default.BookmarkBorder, contentDescription = null, modifier = Modifier.size(26.dp))
-            Icon(Icons.Default.HelpOutline, contentDescription = null, modifier = Modifier.size(26.dp))
+            Icon(
+                Icons.Default.BookmarkBorder,
+                contentDescription = null,
+                modifier = Modifier.size(26.dp),
+                tint = MaterialTheme.colorScheme.onSurface
+            )
+            Icon(
+                Icons.Default.HelpOutline,
+                contentDescription = null,
+                modifier = Modifier.size(26.dp),
+                tint = MaterialTheme.colorScheme.onSurface
+            )
         }
 
         // ============ SPEED POPUP ============
@@ -134,7 +147,12 @@ fun VerticalReaderPanel(
                     Modifier.padding(10.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text("Speed", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        "Speed",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
 
                     Slider(
                         value = speed,
@@ -159,7 +177,12 @@ fun VerticalReaderPanel(
                 elevation = CardDefaults.cardElevation(4.dp)
             ) {
                 Column(Modifier.padding(12.dp)) {
-                    Text("Voices", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Text(
+                        "Voices",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
                     Spacer(Modifier.height(8.dp))
 
                     listOf("Emma", "Michael", "Anna").forEach { voice ->
@@ -170,9 +193,16 @@ fun VerticalReaderPanel(
                                 .clickable { onSelectVoice(voice) }
                                 .padding(vertical = 8.dp)
                         ) {
-                            Icon(Icons.Default.AccountCircle, contentDescription = null)
+                            Icon(
+                                Icons.Default.AccountCircle,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
                             Spacer(Modifier.width(8.dp))
-                            Text(voice)
+                            Text(
+                                voice,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
                         }
                     }
                 }

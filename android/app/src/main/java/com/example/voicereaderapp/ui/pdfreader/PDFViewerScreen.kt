@@ -31,6 +31,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -118,18 +119,17 @@ fun PDFViewerScreen(
             isLoading = uiState.isOCRProcessing || uiState.isGeneratingAudio,
             playbackSpeed = uiState.playbackSpeed,
             selectedVoice = uiState.selectedSpeaker,
+            selectedLanguage = uiState.selectedLanguage,
             onPlayPause = {
                 if (uiState.audioBase64 == null) {
-                    viewModel.generateSpeech()
+                    // No audio yet - generate it and auto-play (fixes double-press issue)
+                    viewModel.generateSpeech(autoPlay = true)
                 } else {
                     if (uiState.isPlaying) {
                         viewModel.pauseAudio()
                     } else {
-                        if (uiState.currentPlaybackPosition == 0L) {
-                            viewModel.playAudio()
-                        } else {
-                            viewModel.resumeAudio()
-                        }
+                        // Always use playAudio() which will start from current position
+                        viewModel.playAudio()
                     }
                 }
             },
@@ -143,7 +143,9 @@ fun PDFViewerScreen(
                 viewModel.seekToFraction(fraction)
             },
             onSpeedChange = { viewModel.setPlaybackSpeed(it) },
-            onVoiceChange = { viewModel.setSpeaker(it) },
+            onVoiceChange = { voiceId, language ->
+                viewModel.setVoiceAndLanguage(voiceId, language)
+            },
             onTakeNote = { showTakeNoteDialog = true },
             onBack = { navController.popBackStack() }
         )
@@ -202,7 +204,7 @@ private fun PDFReaderContent(
         state = scrollState,
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Transparent)
+            .background(MaterialTheme.colorScheme.surfaceVariant)
             .padding(horizontal = 16.dp)
     ) {
         itemsIndexed(words.chunked(20)) { chunkIndex, chunk ->
@@ -222,12 +224,14 @@ private fun PDFReaderContent(
                     Text(
                         text = word,
                         style = MaterialTheme.typography.bodyLarge.copy(
-                            fontSize = 18.sp
+                            fontFamily = FontFamily.Serif,
+                            fontSize = 18.sp,
+                            lineHeight = 28.sp
                         ),
                         color = if (highlight)
                             MaterialTheme.colorScheme.primary
                         else
-                            MaterialTheme.colorScheme.onBackground,
+                            MaterialTheme.colorScheme.onSurface,
                         fontWeight = if (highlight) FontWeight.Bold else FontWeight.Normal
                     )
                 }
@@ -489,7 +493,7 @@ fun PDFWithOCROverlay(
 
 // Helper to get original filename from URI
 private fun getOriginalFilename(context: Context, uri: Uri): String {
-    var filename = "Document.pdf"
+    var filename = "Document"
 
     try {
         // Try to get filename from ContentResolver
@@ -504,7 +508,7 @@ private fun getOriginalFilename(context: Context, uri: Uri): String {
             }
         } else if (uri.scheme == "file") {
             // For file:// URIs, get the last path segment
-            filename = uri.lastPathSegment ?: "Document.pdf"
+            filename = uri.lastPathSegment ?: "Document"
         }
     } catch (e: Exception) {
         android.util.Log.e("PDFViewerScreen", "Failed to get original filename", e)
@@ -517,13 +521,43 @@ private fun getOriginalFilename(context: Context, uri: Uri): String {
 private fun uriToFile(context: Context, uri: Uri): File? {
     return try {
         val inputStream = context.contentResolver.openInputStream(uri)
-        val tempFile = File.createTempFile("upload", ".pdf", context.cacheDir)
+
+        // Detect file extension from MIME type or filename
+        val mimeType = context.contentResolver.getType(uri)
+        val extension = when {
+            mimeType?.startsWith("image/") == true -> {
+                when (mimeType) {
+                    "image/png" -> ".png"
+                    "image/jpeg" -> ".jpg"
+                    "image/jpg" -> ".jpg"
+                    else -> ".img"
+                }
+            }
+            mimeType == "application/pdf" -> ".pdf"
+            mimeType == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" -> ".docx"
+            mimeType == "application/msword" -> ".doc"
+            else -> {
+                // Try to get extension from filename
+                val filename = getOriginalFilename(context, uri)
+                val dotIndex = filename.lastIndexOf('.')
+                if (dotIndex > 0) {
+                    val ext = filename.substring(dotIndex)
+                    when (ext.lowercase()) {
+                        ".pdf", ".docx", ".doc", ".png", ".jpg", ".jpeg" -> ext
+                        else -> ".pdf" // Default fallback
+                    }
+                } else ".pdf"
+            }
+        }
+
+        val tempFile = File.createTempFile("upload", extension, context.cacheDir)
         tempFile.outputStream().use { output ->
             inputStream?.copyTo(output)
         }
         inputStream?.close()
         tempFile
     } catch (e: Exception) {
+        android.util.Log.e("PDFViewerScreen", "Failed to convert URI to file", e)
         null
     }
 }

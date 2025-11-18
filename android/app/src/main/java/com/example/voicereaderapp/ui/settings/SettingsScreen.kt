@@ -1,6 +1,9 @@
 package com.example.voicereaderapp.ui.settings
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -10,6 +13,9 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.voicereaderapp.domain.model.TTSLanguage
+import com.example.voicereaderapp.domain.model.TTSVoice
+import com.example.voicereaderapp.ui.common.VoiceSelectionDialog
 import com.example.voicereaderapp.utils.VoiceFeedback
 import com.example.voicereaderapp.utils.provideFeedback
 
@@ -25,6 +31,23 @@ fun SettingsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+    var showVoiceDialog by remember { mutableStateOf(false) }
+
+    // Voice selection dialog
+    if (showVoiceDialog) {
+        VoiceSelectionDialog(
+            currentLanguage = uiState.settings.language,
+            currentVoiceId = uiState.settings.voiceId,
+            onDismiss = { showVoiceDialog = false },
+            onVoiceSelected = { language, voiceId ->
+                viewModel.updateVoiceAndLanguage(voiceId, language)
+                context.provideFeedback(
+                    VoiceFeedback.FeedbackType.SUCCESS,
+                    "Voice updated"
+                )
+            }
+        )
+    }
 
     Column(
         modifier = Modifier
@@ -40,19 +63,50 @@ fun SettingsScreen(
             modifier = Modifier
                 .padding(bottom = 24.dp)
                 .semantics {
-                    contentDescription = "Cài đặt giọng đọc"
+                    contentDescription = "Voice Settings"
                 }
         )
 
-        // Language selection
-        Text(
-            text = "Language: ${uiState.settings.language}",
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
-        // TODO: Add language dropdown
+        // Voice and Language selection
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { showVoiceDialog = true }
+                .padding(bottom = 16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant
+            )
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Voice",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    val currentVoice = TTSVoice.fromId(uiState.settings.voiceId)
+                    val currentLanguage = TTSLanguage.fromCode(uiState.settings.language)
+                    Text(
+                        text = "${currentVoice?.displayName ?: "Default"} (${currentLanguage.displayName})",
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                }
+                Icon(
+                    imageVector = Icons.Default.ArrowForward,
+                    contentDescription = "Change voice",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         // Speed slider
         Text(

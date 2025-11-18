@@ -15,6 +15,10 @@ import com.example.voicereaderapp.domain.model.ReadingDocument
  * @property type Type of document as string (PDF, IMAGE, LIVE_SCREEN)
  * @property createdAt Timestamp of creation
  * @property lastReadPosition Last reading position
+ * @property voiceId Selected voice ID for this document (nullable for backward compatibility)
+ * @property language Selected language for this document (nullable for backward compatibility)
+ * @property speed Playback speed for this document (nullable for backward compatibility)
+ * @property audioCacheJson Multiple cached audio versions as JSON (one per voice+language)
  */
 @Entity(tableName = "documents")
 data class DocumentEntity(
@@ -24,7 +28,11 @@ data class DocumentEntity(
     val content: String,
     val type: String,
     val createdAt: Long,
-    val lastReadPosition: Int = 0
+    val lastReadPosition: Int = 0,
+    val voiceId: String? = null,
+    val language: String? = null,
+    val speed: Float? = null,
+    val audioCacheJson: String? = null
 )
 
 /**
@@ -39,7 +47,11 @@ fun DocumentEntity.toDomain(): ReadingDocument {
         content = content,
         type = DocumentType.valueOf(type),
         createdAt = createdAt,
-        lastReadPosition = lastReadPosition
+        lastReadPosition = lastReadPosition,
+        voiceId = voiceId,
+        language = language,
+        speed = speed,
+        audioCacheJson = audioCacheJson
     )
 }
 
@@ -55,6 +67,10 @@ fun ReadingDocument.toEntity(): DocumentEntity {
         content = content,
         type = type.name,
         createdAt = createdAt,
-        lastReadPosition = lastReadPosition
+        lastReadPosition = lastReadPosition,
+        voiceId = voiceId,
+        language = language,
+        speed = speed,
+        audioCacheJson = audioCacheJson
     )
 }

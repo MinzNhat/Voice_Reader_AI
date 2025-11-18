@@ -10,10 +10,10 @@ val SecondaryLight = Color(0xFF737A8C)
 val SecondaryContainerLight = Color(0xFFEEF0F5)
 
 val BackgroundLight = Color(0xFFF5F8FF)
-val SurfaceLight = Color(0xFFDBE2FC)
-val SurfaceVariantLight = Color(0xFFE4E7ED)
+val SurfaceLight = Color(0xFFDBE4FD)
+val SurfaceVariantLight = Color(0xFFF7FBFF)
 
-val OnPrimaryLight = Color(0xFFFFFFFF)
+val OnPrimaryLight = Color(0xFFE8EDFA)
 val OnSurfaceLight = Color(0xFF1C1E21)
 val OnBackgroundLight = Color(0xFF2C2F33)
 
@@ -25,10 +25,10 @@ val PrimaryContainerDark = Color(0xFF1A2C48)
 val SecondaryDark = Color(0xFFA1A7B3)
 val SecondaryContainerDark = Color(0xFF30333A)
 
-val BackgroundDark = Color(0xFF121416)
-val SurfaceDark = Color(0xFF1A1C1E)
+val BackgroundDark = Color(0xF1313133)
+val SurfaceDark = Color(0xFF151515)
 val SurfaceVariantDark = Color(0xFF2A2D31)
 
-val OnPrimaryDark = Color(0xFF06131F)
+val OnPrimaryDark = Color(0xFF272728)
 val OnSurfaceDark = Color(0xFFECEDEE)
 val OnBackgroundDark = Color(0xFFECEDEE)

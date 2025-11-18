@@ -14,7 +14,7 @@ import com.example.voicereaderapp.data.local.entity.DocumentEntity
  */
 @Database(
     entities = [DocumentEntity::class],
-    version = 1,
+    version = 3,
     exportSchema = false
 )
 abstract class VoiceReaderDatabase : RoomDatabase() {

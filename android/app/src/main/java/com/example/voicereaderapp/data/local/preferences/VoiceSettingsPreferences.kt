@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.example.voicereaderapp.domain.model.ThemeMode
 import com.example.voicereaderapp.domain.model.VoiceSettings
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -35,6 +36,7 @@ class VoiceSettingsPreferences @Inject constructor(
         private val SPEED_KEY = floatPreferencesKey("speed")
         private val PITCH_KEY = floatPreferencesKey("pitch")
         private val LANGUAGE_KEY = stringPreferencesKey("language")
+        private val THEME_KEY = stringPreferencesKey("theme")
     }
 
     /**
@@ -45,11 +47,19 @@ class VoiceSettingsPreferences @Inject constructor(
      */
     fun getVoiceSettings(): Flow<VoiceSettings> {
         return dataStore.data.map { preferences ->
+            val themeString = preferences[THEME_KEY] ?: "SYSTEM"
+            val theme = try {
+                ThemeMode.valueOf(themeString)
+            } catch (e: IllegalArgumentException) {
+                ThemeMode.SYSTEM
+            }
+
             VoiceSettings(
-                voiceId = preferences[VOICE_ID_KEY] ?: "",
+                voiceId = preferences[VOICE_ID_KEY] ?: "matt",
                 speed = preferences[SPEED_KEY] ?: 1.0f,
                 pitch = preferences[PITCH_KEY] ?: 1.0f,
-                language = preferences[LANGUAGE_KEY] ?: "vi-VN"
+                language = preferences[LANGUAGE_KEY] ?: "en-US",
+                theme = theme
             )
         }
     }
@@ -65,6 +75,7 @@ class VoiceSettingsPreferences @Inject constructor(
             preferences[SPEED_KEY] = settings.speed
             preferences[PITCH_KEY] = settings.pitch
             preferences[LANGUAGE_KEY] = settings.language
+            preferences[THEME_KEY] = settings.theme.name
         }
     }
 

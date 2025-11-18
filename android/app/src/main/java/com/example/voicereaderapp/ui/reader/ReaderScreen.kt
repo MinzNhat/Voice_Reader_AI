@@ -68,7 +68,8 @@ fun ReaderScreen(
         isPlaying = uiState.isPlaying,
         isLoading = uiState.isLoading,
         playbackSpeed = settingsState.settings.speed,
-        selectedVoice = "Emma", // TODO: Get from settings
+        selectedVoice = settingsState.settings.voiceId,
+        selectedLanguage = settingsState.settings.language,
         onPlayPause = { viewModel.togglePlayPause() },
         onRewind = { viewModel.rewind() },
         onForward = { viewModel.forward() },
@@ -77,7 +78,9 @@ fun ReaderScreen(
             viewModel.jumpTo(targetIndex)
         },
         onSpeedChange = { settingsViewModel.updateSpeed(it) },
-        onVoiceChange = { /* TODO: Implement voice change */ },
+        onVoiceChange = { voiceId, language ->
+            settingsViewModel.updateVoiceAndLanguage(voiceId, language)
+        },
         onTakeNote = { showTakeNoteDialog = true },
         onBack = { navController.popBackStack() }
     )

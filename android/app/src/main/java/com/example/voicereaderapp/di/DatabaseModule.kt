@@ -3,6 +3,8 @@ package com.example.voicereaderapp.di
 import android.content.Context
 import androidx.room.Room
 import com.example.voicereaderapp.data.local.dao.DocumentDao
+import com.example.voicereaderapp.data.local.database.MIGRATION_1_2
+import com.example.voicereaderapp.data.local.database.MIGRATION_2_3
 import com.example.voicereaderapp.data.local.database.VoiceReaderDatabase
 import dagger.Module
 import dagger.Provides
@@ -35,6 +37,7 @@ object DatabaseModule {
             VoiceReaderDatabase::class.java,
             VoiceReaderDatabase.DATABASE_NAME
         )
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
             .fallbackToDestructiveMigration()
             .build()
     }

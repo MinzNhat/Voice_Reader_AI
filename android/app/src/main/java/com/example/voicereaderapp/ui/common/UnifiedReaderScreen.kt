@@ -19,6 +19,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.example.voicereaderapp.ui.pdfreader.SpeakerSelectionDialog
 
 /**
  * Unified Reader Screen Component
@@ -33,13 +34,14 @@ import coil.compose.AsyncImage
  * @param isPlaying Whether audio is currently playing
  * @param isLoading Whether content is loading
  * @param playbackSpeed Current playback speed
- * @param selectedVoice Currently selected voice
+ * @param selectedVoice Currently selected voice ID
+ * @param selectedLanguage Currently selected language code
  * @param onPlayPause Play/pause button callback
  * @param onRewind Rewind button callback
  * @param onForward Forward button callback
  * @param onSeek Seek slider callback (0.0 to 1.0)
  * @param onSpeedChange Speed change callback
- * @param onVoiceChange Voice selection callback
+ * @param onVoiceChange Voice and language selection callback
  * @param onBack Back button callback
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -53,12 +55,13 @@ fun UnifiedReaderScreen(
     isLoading: Boolean = false,
     playbackSpeed: Float,
     selectedVoice: String,
+    selectedLanguage: String = "en-US",
     onPlayPause: () -> Unit,
     onRewind: () -> Unit,
     onForward: () -> Unit,
     onSeek: (Float) -> Unit,
     onSpeedChange: (Float) -> Unit,
-    onVoiceChange: (String) -> Unit,
+    onVoiceChange: (voiceId: String, language: String) -> Unit,
     onTakeNote: () -> Unit = {},  // Added for Take Note feature
     onBack: () -> Unit
 ) {
@@ -164,7 +167,7 @@ fun UnifiedReaderScreen(
                 .align(Alignment.BottomCenter),
             shape = RoundedCornerShape(topStart = 36.dp, topEnd = 36.dp),
             tonalElevation = 6.dp,
-            color = Color.White
+            color = MaterialTheme.colorScheme.surfaceVariant
         ) {
             Column(
                 modifier = Modifier
@@ -212,7 +215,12 @@ fun UnifiedReaderScreen(
                     onValueChange = onSeek,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 4.dp)
+                        .padding(bottom = 4.dp),
+                    colors = SliderDefaults.colors(
+                        thumbColor = MaterialTheme.colorScheme.primary,
+                        activeTrackColor = MaterialTheme.colorScheme.primary,
+                        inactiveTrackColor = Color(0xFF9CA3AF)
+                    )
                 )
 
                 Spacer(Modifier.height(2.dp))
@@ -356,53 +364,15 @@ fun UnifiedReaderScreen(
 
         // Voice Picker Dialog
         if (showVoicePicker) {
-            Surface(
-                modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .padding(end = 100.dp)
-                    .offset(y = (-170).dp)
-                    .width(180.dp)
-                    .wrapContentHeight(),
-                shape = RoundedCornerShape(16.dp),
-                tonalElevation = 4.dp
-            ) {
-                Column(Modifier.padding(16.dp)) {
-                    Text("Voices", fontWeight = FontWeight.Bold)
-
-                    listOf(
-                        "matt" to "https://randomuser.me/api/portraits/men/1.jpg",
-                        "sarah" to "https://randomuser.me/api/portraits/women/2.jpg",
-                        "emma" to "https://randomuser.me/api/portraits/women/4.jpg"
-                    ).forEach { (speaker, url) ->
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    onVoiceChange(speaker)
-                                    showVoicePicker = false
-                                }
-                                .padding(vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            AsyncImage(
-                                model = url,
-                                contentDescription = "Voice",
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .clip(CircleShape)
-                            )
-                            Text(
-                                " ${speaker.replaceFirstChar { it.uppercase() }}",
-                                modifier = Modifier.padding(start = 8.dp),
-                                color = if (speaker == selectedVoice)
-                                    MaterialTheme.colorScheme.primary
-                                else
-                                    MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                    }
+            SpeakerSelectionDialog(
+                currentSpeaker = selectedVoice,
+                currentLanguage = selectedLanguage,
+                onDismiss = { showVoicePicker = false },
+                onSpeakerSelected = { voiceId, language ->
+                    onVoiceChange(voiceId, language)
+                    showVoicePicker = false
                 }
-            }
+            )
         }
     }
 }

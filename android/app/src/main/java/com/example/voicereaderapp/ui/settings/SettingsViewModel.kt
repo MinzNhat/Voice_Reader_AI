@@ -82,15 +82,56 @@ class SettingsViewModel @Inject constructor(
     }
 
     /**
-     * Updates the selected voice.
+     * Updates the selected voice and language.
      *
-     * @param voiceId Voice identifier (e.g., "matt", "sarah", "emma")
+     * @param voiceId Voice identifier (e.g., "matt", "minseo")
+     * @param language Language code (e.g., "en-US", "ko-KR")
+     */
+    fun updateVoiceAndLanguage(voiceId: String, language: String) {
+        _uiState.value = _uiState.value.copy(
+            settings = _uiState.value.settings.copy(
+                voiceId = voiceId,
+                language = language
+            )
+        )
+        // Auto-save when voice changes
+        saveSettings()
+    }
+
+    /**
+     * Updates the selected voice only.
+     *
+     * @param voiceId Voice identifier (e.g., "matt", "minseo")
      */
     fun updateVoice(voiceId: String) {
         _uiState.value = _uiState.value.copy(
             settings = _uiState.value.settings.copy(voiceId = voiceId)
         )
         // Auto-save when voice changes
+        saveSettings()
+    }
+
+    /**
+     * Updates the language.
+     *
+     * @param language Language code (e.g., "en-US", "ko-KR")
+     */
+    fun updateLanguage(language: String) {
+        _uiState.value = _uiState.value.copy(
+            settings = _uiState.value.settings.copy(language = language)
+        )
+    }
+
+    /**
+     * Updates the theme mode.
+     *
+     * @param theme Theme mode (LIGHT, DARK, SYSTEM)
+     */
+    fun updateTheme(theme: com.example.voicereaderapp.domain.model.ThemeMode) {
+        _uiState.value = _uiState.value.copy(
+            settings = _uiState.value.settings.copy(theme = theme)
+        )
+        // Auto-save when theme changes
         saveSettings()
     }
 
