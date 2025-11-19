@@ -65,9 +65,7 @@ fun UnifiedReaderScreen(
     onTakeNote: () -> Unit = {},  // Added for Take Note feature
     onBack: () -> Unit
 ) {
-    var showControls by remember { mutableStateOf(false) }
-    var showSpeedSlider by remember { mutableStateOf(false) }
-    var showVoicePicker by remember { mutableStateOf(false) }
+    var showReaderSettings by remember { mutableStateOf(false) }
 
     Box(modifier = Modifier.fillMaxSize()) {
 
@@ -133,12 +131,10 @@ fun UnifiedReaderScreen(
                 )
             }
 
-            // SETTINGS BUTTON (right)
+            // SETTINGS BUTTON (right) - Opens PDFReaderSettingsSheet
             IconButton(
                 onClick = {
-                    showControls = true
-                    showSpeedSlider = false
-                    showVoicePicker = false
+                    showReaderSettings = true
                 },
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
@@ -299,79 +295,16 @@ fun UnifiedReaderScreen(
         }
 
         // ==========================
-        // SETTINGS PANEL (right side)
+        // PDF READER SETTINGS SHEET
         // ==========================
-        if (showControls) {
-            Box(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .width(90.dp)
-                    .align(Alignment.CenterEnd)
-                    .offset(x = (-5).dp, y = (-200).dp)
-            ) {
-                VerticalReaderPanel(
-                    speed = playbackSpeed,
-                    onSpeedChange = onSpeedChange,
-                    selectedVoice = selectedVoice,
-                    onSelectVoice = { showVoicePicker = true },
-                    onClickSpeed = {
-                        showSpeedSlider = true
-                        showVoicePicker = false
-                    },
-                    onClickVoice = {
-                        showVoicePicker = true
-                        showSpeedSlider = false
-                    },
-                    onTakeNote = {
-                        onTakeNote()
-                        showControls = false
-                    },
-                    onClose = {
-                        showControls = false
-                        showSpeedSlider = false
-                        showVoicePicker = false
-                    }
-                )
-            }
-        }
-
-        // Speed Slider Dialog
-        if (showSpeedSlider) {
-            Surface(
-                modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .padding(end = 80.dp)
-                    .offset(y = (-250).dp)
-                    .width(160.dp),
-                shape = RoundedCornerShape(16.dp),
-                tonalElevation = 4.dp
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text("Speed", fontWeight = FontWeight.Bold)
-                    Slider(
-                        value = playbackSpeed,
-                        onValueChange = onSpeedChange,
-                        valueRange = 0.5f..2.0f
-                    )
-                    Text("${String.format("%.1f", playbackSpeed)}x")
-                }
-            }
-        }
-
-        // Voice Picker Dialog
-        if (showVoicePicker) {
-            SpeakerSelectionDialog(
-                currentSpeaker = selectedVoice,
-                currentLanguage = selectedLanguage,
-                onDismiss = { showVoicePicker = false },
-                onSpeakerSelected = { voiceId, language ->
-                    onVoiceChange(voiceId, language)
-                    showVoicePicker = false
-                }
+        if (showReaderSettings) {
+            com.example.voicereaderapp.ui.settings.PDFReaderSettingsSheet(
+                speed = playbackSpeed,
+                selectedVoice = selectedVoice,
+                selectedLanguage = selectedLanguage,
+                onSpeedChange = onSpeedChange,
+                onVoiceChange = onVoiceChange,
+                onDismiss = { showReaderSettings = false }
             )
         }
     }

@@ -28,11 +28,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.core.app.NotificationCompat
 import com.example.voicereaderapp.R
+import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
+@AndroidEntryPoint
 class LiveOverlayService : LifecycleService() {
     private val TAG = "LiveOverlayServiceDebug"
     private lateinit var windowManager: WindowManager
-    private lateinit var viewModel: LiveOverlayViewModel
+
+    @Inject
+    lateinit var viewModel: LiveOverlayViewModel
 
     // Cửa sổ cho EdgeBar
     private var edgeBarView: ComposeView? = null
@@ -55,7 +60,7 @@ class LiveOverlayService : LifecycleService() {
         super.onCreate()
         Log.d(TAG, "====== Service onCreate() được gọi! ======")
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
-        viewModel = LiveOverlayViewModel()
+        // viewModel is injected by Hilt via @Inject
         initializeLayoutParams()
 
         // Lắng nghe trạng thái FOCUS (để hiện bàn phím)
@@ -251,12 +256,18 @@ class LiveOverlayService : LifecycleService() {
     override fun onDestroy() {
         super.onDestroy()
         Log.d(TAG, "====== Service onDestroy() được gọi! ======")
+
+        // Cleanup ViewModel resources (TTS, coroutines)
+        viewModel.cleanup()
+
+        // Remove overlay views
         edgeBarView?.let { windowManager.removeView(it) }
         expandedOverlayView?.let { windowManager.removeView(it) }
-        micView?.let { windowManager.removeView(it) } // ✅ Dọn dẹp mic view
+        micView?.let { windowManager.removeView(it) }
         edgeBarView = null
         expandedOverlayView = null
-        micView = null // ✅ Dọn dẹp mic view
+        micView = null
+
         stopForeground(true)
     }
 

@@ -1,5 +1,7 @@
 package com.example.voicereaderapp
 
+import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -13,6 +15,7 @@ import com.example.voicereaderapp.ui.index.IndexScreen
 import com.example.voicereaderapp.ui.index.IndexWrapper
 import com.example.voicereaderapp.ui.settings.SettingsViewModel
 import com.example.voicereaderapp.ui.theme.VoiceReaderAppTheme
+import com.example.voicereaderapp.utils.LocaleHelper
 import dagger.hilt.android.AndroidEntryPoint
 
 /**
@@ -40,6 +43,29 @@ class MainActivity : ComponentActivity() {
             VoiceReaderAppTheme(darkTheme = useDarkTheme) {
                 IndexWrapper()
             }
+        }
+    }
+
+    override fun attachBaseContext(newBase: Context) {
+        // Get saved language from SharedPreferences (used for locale only)
+        val prefs = newBase.getSharedPreferences("locale_prefs", Context.MODE_PRIVATE)
+        val savedLanguage = prefs.getString("app_language", "en-US") ?: "en-US"
+
+        // Apply locale to context
+        val context = LocaleHelper.setLocale(newBase, savedLanguage)
+        super.attachBaseContext(context)
+    }
+
+    companion object {
+        /**
+         * Restart the activity to apply language changes.
+         *
+         * @param context Current context
+         */
+        fun restartActivity(context: Context) {
+            val intent = Intent(context, MainActivity::class.java)
+            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            context.startActivity(intent)
         }
     }
 }

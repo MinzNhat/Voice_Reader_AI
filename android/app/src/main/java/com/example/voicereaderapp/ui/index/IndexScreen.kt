@@ -368,20 +368,22 @@ fun IndexScreen(
             )
         }
 
-        // Global Settings Sheet
+        // Global Settings Sheet (Theme and Language only)
         if (showGlobalSettings) {
             com.example.voicereaderapp.ui.settings.GlobalSettingsSheet(
-                speed = settingsState.settings.speed,
-                selectedVoice = settingsState.settings.voiceId.ifEmpty { "matt" },
                 selectedLanguage = settingsState.settings.language,
                 selectedTheme = settingsState.settings.theme,
-                onSpeedChange = {
-                    settingsViewModel.updateSpeed(it)
+                onLanguageChange = { language ->
+                    // Save to DataStore (for app settings)
+                    settingsViewModel.updateLanguage(language)
                     settingsViewModel.saveSettings()
-                },
-                onVoiceChange = { settingsViewModel.updateVoice(it) },
-                onVoiceAndLanguageChange = { voiceId, language ->
-                    settingsViewModel.updateVoiceAndLanguage(voiceId, language)
+
+                    // Save to SharedPreferences (for locale configuration)
+                    val prefs = context.getSharedPreferences("locale_prefs", android.content.Context.MODE_PRIVATE)
+                    prefs.edit().putString("app_language", language).apply()
+
+                    // Restart activity to apply locale changes
+                    com.example.voicereaderapp.MainActivity.restartActivity(context)
                 },
                 onThemeChange = { theme ->
                     settingsViewModel.updateTheme(theme)

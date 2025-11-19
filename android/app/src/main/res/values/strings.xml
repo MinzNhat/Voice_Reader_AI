@@ -1,3 +1,75 @@
 <resources>
+    <!-- App Name -->
     <string name="app_name">VoiceReaderApp</string>
+
+    <!-- Global Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_description">Configure app-wide settings</string>
+    <string name="settings_theme">Theme</string>
+    <string name="settings_language">Language</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+    <string name="theme_system">System</string>
+    <string name="language_english">English</string>
+    <string name="language_korean">Korean</string>
+    <string name="close">Close</string>
+
+    <!-- Reader Settings -->
+    <string name="reader_settings_title">Reader Settings</string>
+    <string name="playback_speed">Playback Speed</string>
+    <string name="voice">Voice</string>
+    <string name="voice_female">Female</string>
+    <string name="voice_male">Male</string>
+    <string name="selected">Selected</string>
+
+    <!-- Index Screen -->
+    <string name="continue_listening">Continue Listening</string>
+    <string name="recently_added">Recently Added</string>
+    <string name="import_document">Import Document</string>
+    <string name="live_reader">Live Reader</string>
+    <string name="empty_library">No documents yet</string>
+    <string name="empty_library_description">Import a PDF or document to get started</string>
+
+    <!-- Reader Screen -->
+    <string name="loading">Loading…</string>
+    <string name="play">Play</string>
+    <string name="pause">Pause</string>
+    <string name="rewind">Rewind</string>
+    <string name="forward">Forward</string>
+    <string name="take_note">Take Note</string>
+    <string name="settings">Settings</string>
+
+    <!-- PDF Reader -->
+    <string name="captured_text">Captured Text:</string>
+    <string name="pdf_processing">Processing PDF…</string>
+    <string name="ocr_processing">Extracting text…</string>
+    <string name="generating_audio">Generating audio…</string>
+
+    <!-- Live Reader -->
+    <string name="live_reader_title">Live Screen Reader</string>
+    <string name="status">Status:</string>
+    <string name="reading">Reading…</string>
+    <string name="stopped">Stopped</string>
+    <string name="start_reading">Start Reading</string>
+    <string name="stop_reading">Stop Reading</string>
+
+    <!-- Notes -->
+    <string name="note_title">Note</string>
+    <string name="note_save">Save</string>
+    <string name="note_cancel">Cancel</string>
+    <string name="note_delete">Delete</string>
+    <string name="note_edit">Edit</string>
+
+    <!-- Errors -->
+    <string name="error_title">Error</string>
+    <string name="error_document_not_found">Document not found</string>
+    <string name="error_failed_to_load">Failed to load document</string>
+    <string name="error_network">Network error. Please check your connection.</string>
+
+    <!-- Overlay Service -->
+    <string name="overlay_notification_title">VoiceReader is Active</string>
+    <string name="overlay_notification_description">Live Scan is running in the background.</string>
+    <string name="summarize">Summarize</string>
+    <string name="change_voice">Change Voice</string>
+    <string name="reading_speed">Reading speed: %.1fx</string>
 </resources>

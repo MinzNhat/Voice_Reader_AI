@@ -75,7 +75,7 @@ fun EdgeBarSettingsPanel(viewModel: LiveOverlayViewModel) {
             Slider(
                 value = currentSpeed,
                 onValueChange = { newSpeed -> viewModel.setSpeed(newSpeed) },
-                valueRange = 0.2f..3.0f,
+                valueRange = 0.5f..2.0f,  // API limit (NAVER Clova Voice)
                 modifier = Modifier.fillMaxWidth(0.8f)
             )
         }

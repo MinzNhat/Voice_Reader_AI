@@ -20,7 +20,7 @@ import com.example.voicereaderapp.data.local.entity.DocumentEntity
  */
 @Database(
     entities = [DocumentEntity::class, NoteEntity::class],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class VoiceReaderDatabase : RoomDatabase() {
@@ -50,8 +50,8 @@ abstract class VoiceReaderDatabase : RoomDatabase() {
                     VoiceReaderDatabase::class.java,
                     DATABASE_NAME
                 )
-                    // THÊM MIGRATION VÀO ĐÂY
-                    .addMigrations(MIGRATION_1_2)
+                    // For development: just drop and recreate on any schema changes
+                    .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance
                 // return instance
@@ -65,6 +65,16 @@ abstract class VoiceReaderDatabase : RoomDatabase() {
                 db.execSQL(
                     "CREATE TABLE IF NOT EXISTS `notes_table` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `title` TEXT NOT NULL, `content` TEXT NOT NULL, `lastModified` INTEGER NOT NULL)"
                 )
+
+                // Thêm cột audioCacheJson vào bảng documents
+                db.execSQL("ALTER TABLE documents ADD COLUMN audioCacheJson TEXT DEFAULT NULL")
+            }
+        }
+
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Version 3 - không có thay đổi schema, chỉ để force refresh
+                // Tất cả schema đã đúng ở version 2
             }
         }
     }

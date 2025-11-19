@@ -1,0 +1,75 @@
+<resources>
+    <!-- App Name -->
+    <string name="app_name">보이스리더</string>
+
+    <!-- Global Settings -->
+    <string name="settings_title">설정</string>
+    <string name="settings_description">앱 전체 설정을 구성합니다</string>
+    <string name="settings_theme">테마</string>
+    <string name="settings_language">언어</string>
+    <string name="theme_light">라이트</string>
+    <string name="theme_dark">다크</string>
+    <string name="theme_system">시스템</string>
+    <string name="language_english">English</string>
+    <string name="language_korean">한국어</string>
+    <string name="close">닫기</string>
+
+    <!-- Reader Settings -->
+    <string name="reader_settings_title">리더 설정</string>
+    <string name="playback_speed">재생 속도</string>
+    <string name="voice">음성</string>
+    <string name="voice_female">여성</string>
+    <string name="voice_male">남성</string>
+    <string name="selected">선택됨</string>
+
+    <!-- Index Screen -->
+    <string name="continue_listening">계속 듣기</string>
+    <string name="recently_added">최근 추가됨</string>
+    <string name="import_document">문서 가져오기</string>
+    <string name="live_reader">라이브 리더</string>
+    <string name="empty_library">문서가 없습니다</string>
+    <string name="empty_library_description">시작하려면 PDF 또는 문서를 가져오세요</string>
+
+    <!-- Reader Screen -->
+    <string name="loading">로딩 중…</string>
+    <string name="play">재생</string>
+    <string name="pause">일시정지</string>
+    <string name="rewind">되감기</string>
+    <string name="forward">빨리감기</string>
+    <string name="take_note">메모 작성</string>
+    <string name="settings">설정</string>
+
+    <!-- PDF Reader -->
+    <string name="captured_text">캡처된 텍스트:</string>
+    <string name="pdf_processing">PDF 처리 중…</string>
+    <string name="ocr_processing">텍스트 추출 중…</string>
+    <string name="generating_audio">오디오 생성 중…</string>
+
+    <!-- Live Reader -->
+    <string name="live_reader_title">라이브 화면 리더</string>
+    <string name="status">상태:</string>
+    <string name="reading">읽는 중…</string>
+    <string name="stopped">중지됨</string>
+    <string name="start_reading">읽기 시작</string>
+    <string name="stop_reading">읽기 중지</string>
+
+    <!-- Notes -->
+    <string name="note_title">메모</string>
+    <string name="note_save">저장</string>
+    <string name="note_cancel">취소</string>
+    <string name="note_delete">삭제</string>
+    <string name="note_edit">편집</string>
+
+    <!-- Errors -->
+    <string name="error_title">오류</string>
+    <string name="error_document_not_found">문서를 찾을 수 없습니다</string>
+    <string name="error_failed_to_load">문서를 불러오는데 실패했습니다</string>
+    <string name="error_network">네트워크 오류. 연결을 확인하세요.</string>
+
+    <!-- Overlay Service -->
+    <string name="overlay_notification_title">보이스리더가 활성화되었습니다</string>
+    <string name="overlay_notification_description">라이브 스캔이 백그라운드에서 실행 중입니다.</string>
+    <string name="summarize">요약</string>
+    <string name="change_voice">음성 변경</string>
+    <string name="reading_speed">읽기 속도: %.1f배</string>
+</resources>

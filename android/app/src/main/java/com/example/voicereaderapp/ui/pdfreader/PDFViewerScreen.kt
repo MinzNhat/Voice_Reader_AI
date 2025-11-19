@@ -225,13 +225,14 @@ private fun PDFReaderContent(
                         text = word,
                         style = MaterialTheme.typography.bodyLarge.copy(
                             fontFamily = FontFamily.Serif,
-                            fontSize = 18.sp,
-                            lineHeight = 28.sp
+                            fontSize = 20.sp,  // Larger for better readability
+                            lineHeight = 32.sp,  // More spacing like the image
+                            letterSpacing = 0.15.sp  // Better letter spacing
                         ),
                         color = if (highlight)
                             MaterialTheme.colorScheme.primary
                         else
-                            MaterialTheme.colorScheme.onSurface,
+                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.87f),
                         fontWeight = if (highlight) FontWeight.Bold else FontWeight.Normal
                     )
                 }
