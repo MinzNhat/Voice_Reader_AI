@@ -13,6 +13,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -63,7 +64,12 @@ fun UnifiedReaderScreen(
     onSpeedChange: (Float) -> Unit,
     onVoiceChange: (voiceId: String, language: String) -> Unit,
     onTakeNote: () -> Unit = {},  // Added for Take Note feature
-    onBack: () -> Unit
+    onShowNotes: () -> Unit = {},  // Added for Notes button
+    onBack: () -> Unit,
+    // Global settings enforcement
+    isSpeedEnforced: Boolean = false,
+    enforcedSpeed: Float = 1.0f,
+    isVoiceEnforced: Boolean = false
 ) {
     var showReaderSettings by remember { mutableStateOf(false) }
 
@@ -128,6 +134,25 @@ fun UnifiedReaderScreen(
                         initialDelayMillis = 2000,
                         velocity = 30.dp
                     )
+                )
+            }
+
+            // NOTES BUTTON (right, before settings)
+            IconButton(
+                onClick = onShowNotes,
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(end = 68.dp)  // Leave space for settings button
+                    .size(44.dp)
+                    .background(
+                        MaterialTheme.colorScheme.surface.copy(alpha = 0.98f),
+                        CircleShape
+                    )
+            ) {
+                Icon(
+                    Icons.Default.Description,
+                    contentDescription = "Notes",
+                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 1.0f)
                 )
             }
 
@@ -304,7 +329,11 @@ fun UnifiedReaderScreen(
                 selectedLanguage = selectedLanguage,
                 onSpeedChange = onSpeedChange,
                 onVoiceChange = onVoiceChange,
-                onDismiss = { showReaderSettings = false }
+                onDismiss = { showReaderSettings = false },
+                // Global settings enforcement
+                isSpeedEnforced = isSpeedEnforced,
+                enforcedSpeed = enforcedSpeed,
+                isVoiceEnforced = isVoiceEnforced
             )
         }
     }

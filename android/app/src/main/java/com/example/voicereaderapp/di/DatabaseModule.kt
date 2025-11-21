@@ -3,9 +3,12 @@ package com.example.voicereaderapp.di
 import android.content.Context
 import androidx.room.Room
 import com.example.voicereaderapp.data.local.dao.DocumentDao
+import com.example.voicereaderapp.data.local.dao.NoteDao
 import com.example.voicereaderapp.data.local.database.MIGRATION_1_2
 import com.example.voicereaderapp.data.local.database.MIGRATION_2_3
+//import com.example.voicereaderapp.data.local.database.MIGRATION_3_4
 import com.example.voicereaderapp.data.local.database.VoiceReaderDatabase
+import com.example.voicereaderapp.data.local.entity.NoteRepository
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -52,5 +55,29 @@ object DatabaseModule {
     @Singleton
     fun provideDocumentDao(database: VoiceReaderDatabase): DocumentDao {
         return database.documentDao()
+    }
+
+    /**
+     * Provides NoteDao from database.
+     *
+     * @param database VoiceReaderDatabase instance
+     * @return NoteDao instance
+     */
+    @Provides
+    @Singleton
+    fun provideNoteDao(database: VoiceReaderDatabase): NoteDao {
+        return database.noteDao()
+    }
+
+    /**
+     * Provides NoteRepository.
+     *
+     * @param noteDao NoteDao instance
+     * @return NoteRepository instance
+     */
+    @Provides
+    @Singleton
+    fun provideNoteRepository(noteDao: NoteDao): NoteRepository {
+        return NoteRepository(noteDao)
     }
 }

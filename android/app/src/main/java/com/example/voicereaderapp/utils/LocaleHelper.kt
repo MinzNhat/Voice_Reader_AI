@@ -1,5 +1,6 @@
 package com.example.voicereaderapp.utils
 
+import android.app.Activity
 import android.content.Context
 import android.content.res.Configuration
 import android.os.Build
@@ -10,6 +11,8 @@ import java.util.Locale
  * Provides utilities to change the app's language at runtime.
  */
 object LocaleHelper {
+    private const val PREFS_NAME = "app_settings"
+    private const val KEY_LANGUAGE = "selected_language"
     /**
      * Apply locale to context and return a wrapped context.
      *
@@ -62,5 +65,50 @@ object LocaleHelper {
             context.resources.configuration.locale
         }
         return "${locale.language}-${locale.country}"
+    }
+
+    /**
+     * Save language preference to SharedPreferences
+     *
+     * @param context Current context
+     * @param languageCode Language code to save
+     */
+    fun saveLanguagePreference(context: Context, languageCode: String) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putString(KEY_LANGUAGE, languageCode).apply()
+    }
+
+    /**
+     * Get saved language preference from SharedPreferences
+     *
+     * @param context Current context
+     * @return Saved language code or "en-US" as default
+     */
+    fun getSavedLanguage(context: Context): String {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getString(KEY_LANGUAGE, "en-US") ?: "en-US"
+    }
+
+    /**
+     * Apply saved locale to context
+     *
+     * @param context Current context
+     * @return Context with applied locale
+     */
+    fun applyLocale(context: Context): Context {
+        val savedLanguage = getSavedLanguage(context)
+        return setLocale(context, savedLanguage)
+    }
+
+    /**
+     * Change language and restart activity
+     *
+     * @param activity Current activity
+     * @param languageCode New language code
+     */
+    fun changeLanguage(activity: Activity, languageCode: String) {
+        saveLanguagePreference(activity, languageCode)
+        setLocale(activity, languageCode)
+        activity.recreate()
     }
 }

@@ -25,6 +25,7 @@ import com.example.voicereaderapp.domain.model.VoiceGender
  *
  * @param currentLanguage Currently selected language
  * @param currentVoiceId Currently selected voice ID
+ * @param isMainVoiceEnforced Whether main voice for all documents is enabled
  * @param onDismiss Callback when dialog is dismissed
  * @param onVoiceSelected Callback when a voice is selected with language and voice
  */
@@ -32,6 +33,7 @@ import com.example.voicereaderapp.domain.model.VoiceGender
 fun VoiceSelectionDialog(
     currentLanguage: String,
     currentVoiceId: String,
+    isMainVoiceEnforced: Boolean = false,
     onDismiss: () -> Unit,
     onVoiceSelected: (language: String, voiceId: String) -> Unit
 ) {
@@ -61,6 +63,34 @@ fun VoiceSelectionDialog(
                     modifier = Modifier.padding(bottom = 16.dp)
                 )
 
+                // Show warning if main voice is enforced
+                if (isMainVoiceEnforced) {
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 16.dp),
+                        color = MaterialTheme.colorScheme.errorContainer,
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp)
+                        ) {
+                            Text(
+                                text = "Main Voice Enforced",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Voice selection is disabled because \"Use Main Voice for All Documents\" is enabled in Settings. Disable it to change voice per document.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                        }
+                    }
+                }
+
                 // Language Selection
                 Text(
                     text = "Language",
@@ -79,12 +109,15 @@ fun VoiceSelectionDialog(
                         FilterChip(
                             selected = selectedLanguage == language,
                             onClick = {
-                                selectedLanguage = language
-                                // Auto-select default voice for the language
-                                selectedVoiceId = TTSVoice.getDefaultVoiceForLanguage(language).id
+                                if (!isMainVoiceEnforced) {
+                                    selectedLanguage = language
+                                    // Auto-select default voice for the language
+                                    selectedVoiceId = TTSVoice.getDefaultVoiceForLanguage(language).id
+                                }
                             },
                             label = { Text(language.displayName) },
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1f),
+                            enabled = !isMainVoiceEnforced
                         )
                     }
                 }
@@ -122,7 +155,12 @@ fun VoiceSelectionDialog(
                             VoiceItem(
                                 voice = voice,
                                 isSelected = selectedVoiceId == voice.id,
-                                onClick = { selectedVoiceId = voice.id }
+                                onClick = {
+                                    if (!isMainVoiceEnforced) {
+                                        selectedVoiceId = voice.id
+                                    }
+                                },
+                                enabled = !isMainVoiceEnforced
                             )
                         }
                     }
@@ -141,7 +179,12 @@ fun VoiceSelectionDialog(
                             VoiceItem(
                                 voice = voice,
                                 isSelected = selectedVoiceId == voice.id,
-                                onClick = { selectedVoiceId = voice.id }
+                                onClick = {
+                                    if (!isMainVoiceEnforced) {
+                                        selectedVoiceId = voice.id
+                                    }
+                                },
+                                enabled = !isMainVoiceEnforced
                             )
                         }
                     }
@@ -163,7 +206,8 @@ fun VoiceSelectionDialog(
                         onClick = {
                             onVoiceSelected(selectedLanguage.code, selectedVoiceId)
                             onDismiss()
-                        }
+                        },
+                        enabled = !isMainVoiceEnforced
                     ) {
                         Text("Apply")
                     }
@@ -180,17 +224,20 @@ fun VoiceSelectionDialog(
 private fun VoiceItem(
     voice: TTSVoice,
     isSelected: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    enabled: Boolean = true
 ) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
+            .clickable(onClick = onClick, enabled = enabled),
         shape = RoundedCornerShape(8.dp),
         color = if (isSelected)
             MaterialTheme.colorScheme.primaryContainer
-        else
+        else if (enabled)
             MaterialTheme.colorScheme.surfaceVariant
+        else
+            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
     ) {
         Row(
             modifier = Modifier
@@ -204,8 +251,10 @@ private fun VoiceItem(
                 style = MaterialTheme.typography.bodyLarge,
                 color = if (isSelected)
                     MaterialTheme.colorScheme.onPrimaryContainer
-                else
+                else if (enabled)
                     MaterialTheme.colorScheme.onSurfaceVariant
+                else
+                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
             )
             if (isSelected) {
                 Icon(

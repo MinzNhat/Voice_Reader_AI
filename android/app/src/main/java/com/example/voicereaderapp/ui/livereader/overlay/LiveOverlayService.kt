@@ -20,16 +20,22 @@ import com.example.voicereaderapp.ui.livereader.overlay.window.ServiceLifecycleO
 import android.util.Log
 import androidx.compose.runtime.collectAsState
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import android.view.Gravity
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.core.app.NotificationCompat
 import com.example.voicereaderapp.R
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
+import androidx.compose.foundation.isSystemInDarkTheme
+import com.example.voicereaderapp.ui.theme.VoiceReaderAppTheme
+import com.example.voicereaderapp.utils.LocaleHelper
 
 @AndroidEntryPoint
 class LiveOverlayService : LifecycleService() {
@@ -39,9 +45,12 @@ class LiveOverlayService : LifecycleService() {
     @Inject
     lateinit var viewModel: LiveOverlayViewModel
 
-    // Cửa sổ cho EdgeBar
-    private var edgeBarView: ComposeView? = null
-    private lateinit var edgeBarLayoutParams: WindowManager.LayoutParams
+    @Inject
+    lateinit var getVoiceSettingsUseCase: com.example.voicereaderapp.domain.usecase.GetVoiceSettingsUseCase
+
+    // Cửa sổ cho EdgeBar hoặc CircleButton
+    private var controlView: ComposeView? = null
+    private lateinit var controlLayoutParams: WindowManager.LayoutParams
 
     // Cửa sổ cho Panel Mở rộng
     private var expandedOverlayView: ComposeView? = null
@@ -121,19 +130,21 @@ class LiveOverlayService : LifecycleService() {
     }
 
     private fun initializeLayoutParams() {
-        // Cấu hình cho EdgeBar
-        edgeBarLayoutParams = WindowManager.LayoutParams(
+        // Cấu hình cho Control (EdgeBar or CircleButton)
+        // Use WRAP_CONTENT to only block touches on the actual control, not the whole screen
+        controlLayoutParams = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
 
-            // Không focus, không modal (cho phép chạm xuyên qua vùng trong suốt)
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+            // Không focus, không modal, cho phép chạm xuyên qua vùng trong suốt
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
             PixelFormat.TRANSLUCENT
         ).apply {
-            // Đặt ở góc trên bên phải, offset Y
-            gravity = Gravity.TOP or Gravity.END
-            y = 600
+            // Position at right center by default (for EdgeBar)
+            gravity = android.view.Gravity.END or android.view.Gravity.CENTER_VERTICAL
+            y = 200 // Offset from center
         }
 
         // Cấu hình cho lớp phủ mở rộng (toàn màn hình, trong lớp này có Panel)
@@ -177,27 +188,148 @@ class LiveOverlayService : LifecycleService() {
     }
 
     private fun createComposeView(content: @Composable () -> Unit): ComposeView {
-        val composeView = ComposeView(this)
+        // Apply locale to service context for proper localization
+        val localizedContext = LocaleHelper.applyLocale(this)
+        val composeView = ComposeView(localizedContext)
         val lifecycleOwner = ServiceLifecycleOwner()
         lifecycleOwner.onCreate()
         lifecycleOwner.onResume()
 
         composeView.apply {
+            // Make sure background is transparent to allow touch pass-through
+            setBackgroundColor(android.graphics.Color.TRANSPARENT)
             setViewTreeLifecycleOwner(lifecycleOwner)
             setViewTreeSavedStateRegistryOwner(lifecycleOwner)
             setViewTreeViewModelStoreOwner(lifecycleOwner)
-            setContent(content)
+            setContent {
+                // Apply theme based on settings
+                val themeMode by viewModel.themeMode.collectAsState()
+                val isSystemDark = isSystemInDarkTheme()
+                val isDarkTheme = when (themeMode) {
+                    com.example.voicereaderapp.domain.model.ThemeMode.LIGHT -> false
+                    com.example.voicereaderapp.domain.model.ThemeMode.DARK -> true
+                    com.example.voicereaderapp.domain.model.ThemeMode.SYSTEM -> isSystemDark
+                }
+
+                VoiceReaderAppTheme(darkTheme = isDarkTheme) {
+                    content()
+                }
+            }
         }
         return composeView
     }
 
     private fun showEdgeBar() {
-        if (edgeBarView == null) {
-            edgeBarView = createComposeView {
-                ControlEdgeBar(viewModel = viewModel)
+        // Force cleanup if view already exists (defensive)
+        controlView?.let {
+            try {
+                windowManager.removeView(it)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error removing existing control view", e)
             }
-            windowManager.addView(edgeBarView, edgeBarLayoutParams)
+            controlView = null
         }
+
+        // Read settings to determine which control to show
+        val settings = runBlocking {
+            getVoiceSettingsUseCase().first()
+        }
+
+        Log.d(TAG, "🔧 Creating control view with style: ${settings.liveScanBarStyle}")
+
+        // Get screen dimensions for boundary checking
+        val displayMetrics = resources.displayMetrics
+        val screenWidth = displayMetrics.widthPixels
+        val screenHeight = displayMetrics.heightPixels
+
+        // Configure layout params based on control type
+        when (settings.liveScanBarStyle) {
+            com.example.voicereaderapp.domain.model.LiveScanBarStyle.EDGE_BAR -> {
+                Log.d(TAG, "📍 Setting up EdgeBar at right center")
+                // EdgeBar: positioned at right center
+                controlLayoutParams.gravity = android.view.Gravity.END or android.view.Gravity.CENTER_VERTICAL
+                controlLayoutParams.y = 200
+                controlLayoutParams.x = 0
+
+                controlView = createComposeView {
+                    ControlEdgeBarSimple(
+                        viewModel = viewModel,
+                        onPositionChange = { deltaX, deltaY ->
+                            // Update vertical position when edge bar is dragged
+                            controlLayoutParams.y += deltaY.toInt()
+
+                            // Keep within screen bounds (with some padding)
+                            val edgeBarHeight = 90 * resources.displayMetrics.density // 90.dp in pixels
+                            val minY = -(screenHeight / 2 - edgeBarHeight.toInt() / 2)
+                            val maxY = (screenHeight / 2 - edgeBarHeight.toInt() / 2)
+                            controlLayoutParams.y = controlLayoutParams.y.coerceIn(minY, maxY)
+
+                            controlView?.let { view ->
+                                windowManager.updateViewLayout(view, controlLayoutParams)
+                                Log.d(TAG, "🔄 Edge bar moved to y: ${controlLayoutParams.y}")
+                            }
+                        }
+                    )
+                }
+            }
+            com.example.voicereaderapp.domain.model.LiveScanBarStyle.CIRCLE_BUTTON -> {
+                Log.d(TAG, "📍 Setting up CircleButton at absolute position")
+                // CircleButton: absolute positioning from top-left
+                // Start at right edge, vertically centered
+                val buttonSize = (60 * resources.displayMetrics.density).toInt() // 60.dp in pixels
+                controlLayoutParams.gravity = android.view.Gravity.TOP or android.view.Gravity.START
+                controlLayoutParams.x = screenWidth - buttonSize - (16 * resources.displayMetrics.density).toInt()
+                controlLayoutParams.y = screenHeight / 2 - buttonSize / 2
+
+                controlView = createComposeView {
+                    CircleControlButtonSimple(
+                        viewModel = viewModel,
+                        onPositionChange = { deltaX, deltaY ->
+                            // Update window position when circle button is dragged
+                            controlLayoutParams.x += deltaX.toInt()
+                            controlLayoutParams.y += deltaY.toInt()
+
+                            // Keep within screen bounds during drag
+                            controlLayoutParams.x = controlLayoutParams.x.coerceIn(0, screenWidth - buttonSize)
+                            controlLayoutParams.y = controlLayoutParams.y.coerceIn(0, screenHeight - buttonSize)
+
+                            controlView?.let { view ->
+                                windowManager.updateViewLayout(view, controlLayoutParams)
+                                Log.d(TAG, "🔄 Circle button moved to (${controlLayoutParams.x}, ${controlLayoutParams.y})")
+                            }
+                        },
+                        onDragEnd = {
+                            // Snap to nearest edge (left or right) when drag ends
+                            val centerX = controlLayoutParams.x + buttonSize / 2
+                            val snapToLeft = centerX < screenWidth / 2
+
+                            val padding = (16 * resources.displayMetrics.density).toInt()
+                            controlLayoutParams.x = if (snapToLeft) {
+                                padding // Snap to left edge with padding
+                            } else {
+                                screenWidth - buttonSize - padding // Snap to right edge with padding
+                            }
+
+                            // Keep Y within bounds with padding
+                            val topPadding = (50 * resources.displayMetrics.density).toInt()
+                            val bottomPadding = (50 * resources.displayMetrics.density).toInt()
+                            controlLayoutParams.y = controlLayoutParams.y.coerceIn(
+                                topPadding,
+                                screenHeight - buttonSize - bottomPadding
+                            )
+
+                            controlView?.let { view ->
+                                windowManager.updateViewLayout(view, controlLayoutParams)
+                                Log.d(TAG, "✨ Circle button snapped to ${if (snapToLeft) "left" else "right"} edge at (${controlLayoutParams.x}, ${controlLayoutParams.y})")
+                            }
+                        }
+                    )
+                }
+            }
+        }
+
+        windowManager.addView(controlView, controlLayoutParams)
+        Log.d(TAG, "✅ Control view added to window manager")
     }
 
     private fun showMicView() {
@@ -261,10 +393,10 @@ class LiveOverlayService : LifecycleService() {
         viewModel.cleanup()
 
         // Remove overlay views
-        edgeBarView?.let { windowManager.removeView(it) }
+        controlView?.let { windowManager.removeView(it) }
         expandedOverlayView?.let { windowManager.removeView(it) }
         micView?.let { windowManager.removeView(it) }
-        edgeBarView = null
+        controlView = null
         expandedOverlayView = null
         micView = null
 

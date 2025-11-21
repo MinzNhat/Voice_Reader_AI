@@ -37,7 +37,11 @@ fun PDFReaderSettingsSheet(
     selectedLanguage: String = "en-US",
     onSpeedChange: (Float) -> Unit,
     onVoiceChange: (voiceId: String, language: String) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    // Global enforcement settings
+    isSpeedEnforced: Boolean = false,
+    enforcedSpeed: Float = 1.0f,
+    isVoiceEnforced: Boolean = false
 ) {
     var currentLanguage by remember {
         mutableStateOf(TTSLanguage.fromCode(selectedLanguage))
@@ -105,6 +109,34 @@ fun PDFReaderSettingsSheet(
                 modifier = Modifier.padding(bottom = 8.dp)
             )
 
+            // Show warning if speed is enforced
+            if (isSpeedEnforced) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp)
+                    ) {
+                        Text(
+                            text = "Speed Set Globally",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "This document uses the main speed (${String.format("%.1f", enforcedSpeed)}x) from Settings. Disable \"Use Main Speed for All Documents\" to change per document.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                }
+            }
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -118,7 +150,7 @@ fun PDFReaderSettingsSheet(
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                 )
                 Text(
-                    text = "${String.format("%.1f", speed)}x",
+                    text = "${String.format("%.1f", if (isSpeedEnforced) enforcedSpeed else speed)}x",
                     style = MaterialTheme.typography.titleLarge.copy(
                         fontWeight = FontWeight.Bold,
                         fontSize = 28.sp
@@ -133,12 +165,13 @@ fun PDFReaderSettingsSheet(
             }
 
             Slider(
-                value = speed,
-                onValueChange = onSpeedChange,
+                value = if (isSpeedEnforced) enforcedSpeed else speed,
+                onValueChange = { if (!isSpeedEnforced) onSpeedChange(it) },
                 valueRange = 0.5f..2.0f,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 32.dp)
+                    .padding(bottom = 32.dp),
+                enabled = !isSpeedEnforced
             )
 
             // ==================== LANGUAGE SECTION ====================
@@ -163,14 +196,42 @@ fun PDFReaderSettingsSheet(
                     }
                     FilterChip(
                         selected = currentLanguage == language,
-                        onClick = { currentLanguage = language },
+                        onClick = { if (!isVoiceEnforced) currentLanguage = language },
                         label = { Text(languageName) },
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        enabled = !isVoiceEnforced
                     )
                 }
             }
 
             // ==================== VOICE SECTION ====================
+            // Show warning if voice is enforced
+            if (isVoiceEnforced) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp)
+                    ) {
+                        Text(
+                            text = "Voice Set Globally",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "This document uses the main voice from Settings. Disable \"Use Main Voice for All Documents\" to change per document.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                }
+            }
             Text(
                 text = stringResource(R.string.voice),
                 style = MaterialTheme.typography.titleMedium.copy(
@@ -196,8 +257,11 @@ fun PDFReaderSettingsSheet(
                         voice = voice,
                         isSelected = voice.id == selectedVoice,
                         onClick = {
-                            onVoiceChange(voice.id, voice.language.code)
-                        }
+                            if (!isVoiceEnforced) {
+                                onVoiceChange(voice.id, voice.language.code)
+                            }
+                        },
+                        enabled = !isVoiceEnforced
                     )
                 }
                 Spacer(Modifier.height(16.dp))
@@ -216,8 +280,11 @@ fun PDFReaderSettingsSheet(
                         voice = voice,
                         isSelected = voice.id == selectedVoice,
                         onClick = {
-                            onVoiceChange(voice.id, voice.language.code)
-                        }
+                            if (!isVoiceEnforced) {
+                                onVoiceChange(voice.id, voice.language.code)
+                            }
+                        },
+                        enabled = !isVoiceEnforced
                     )
                 }
             }
@@ -229,7 +296,8 @@ fun PDFReaderSettingsSheet(
 private fun VoiceOptionItem(
     voice: TTSVoice,
     isSelected: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    enabled: Boolean = true
 ) {
     Surface(
         modifier = Modifier
@@ -238,12 +306,14 @@ private fun VoiceOptionItem(
         shape = RoundedCornerShape(12.dp),
         color = if (isSelected)
             MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
-        else
+        else if (enabled)
             MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        else
+            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
     ) {
         Row(
             modifier = Modifier
-                .clickable { onClick() }
+                .clickable(enabled = enabled) { onClick() }
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -257,8 +327,10 @@ private fun VoiceOptionItem(
                 ),
                 color = if (isSelected)
                     MaterialTheme.colorScheme.primary
-                else
+                else if (enabled)
                     MaterialTheme.colorScheme.onSurface
+                else
+                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
             )
 
             Spacer(Modifier.weight(1f))

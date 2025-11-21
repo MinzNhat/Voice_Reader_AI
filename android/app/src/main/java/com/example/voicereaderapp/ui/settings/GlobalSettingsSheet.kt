@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -26,6 +27,8 @@ import com.example.voicereaderapp.R
 import com.example.voicereaderapp.domain.model.TTSLanguage
 import com.example.voicereaderapp.domain.model.TTSVoice
 import com.example.voicereaderapp.domain.model.VoiceGender
+import com.example.voicereaderapp.utils.LocaleHelper
+import android.app.Activity
 
 /**
  * Global Settings Sheet
@@ -37,13 +40,26 @@ import com.example.voicereaderapp.domain.model.VoiceGender
 fun GlobalSettingsSheet(
     selectedLanguage: String = "en-US",
     selectedTheme: com.example.voicereaderapp.domain.model.ThemeMode = com.example.voicereaderapp.domain.model.ThemeMode.SYSTEM,
+    useMainVoiceForAll: Boolean = false,
+    mainVoiceId: String = "matt",
+    useMainSpeedForAll: Boolean = false,
+    mainSpeed: Float = 1.0f,
+    liveScanBarStyle: com.example.voicereaderapp.domain.model.LiveScanBarStyle = com.example.voicereaderapp.domain.model.LiveScanBarStyle.EDGE_BAR,
     onLanguageChange: ((String) -> Unit)? = null,
     onThemeChange: ((com.example.voicereaderapp.domain.model.ThemeMode) -> Unit)? = null,
+    onMainVoiceToggle: ((Boolean) -> Unit)? = null,
+    onMainVoiceChange: ((String) -> Unit)? = null,
+    onMainSpeedToggle: ((Boolean) -> Unit)? = null,
+    onMainSpeedChange: ((Float) -> Unit)? = null,
+    onLiveScanBarStyleChange: ((com.example.voicereaderapp.domain.model.LiveScanBarStyle) -> Unit)? = null,
     onDismiss: () -> Unit
 ) {
     var currentLanguage by remember {
         mutableStateOf(TTSLanguage.fromCode(selectedLanguage))
     }
+
+    val context = LocalContext.current
+    val activity = context as? Activity
 
     val configuration = LocalConfiguration.current
     val screenHeight = configuration.screenHeightDp.dp
@@ -160,11 +176,207 @@ fun GlobalSettingsSheet(
                         onClick = {
                             currentLanguage = language
                             onLanguageChange?.invoke(language.code)
+
+                            // Change app locale immediately
+                            activity?.let {
+                                LocaleHelper.changeLanguage(it, language.code)
+                            }
                         },
                         label = { Text(languageName) },
                         modifier = Modifier.weight(1f)
                     )
                 }
+            }
+
+            Divider(modifier = Modifier.padding(bottom = 24.dp))
+
+            // Main Speed for All Documents
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.use_main_speed_for_all),
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    )
+                    Text(
+                        text = stringResource(R.string.override_speed_settings),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                }
+                Switch(
+                    checked = useMainSpeedForAll,
+                    onCheckedChange = { onMainSpeedToggle?.invoke(it) }
+                )
+            }
+
+            // Speed Slider (visible when main speed is enabled)
+            if (useMainSpeedForAll) {
+                Text(
+                    text = stringResource(R.string.main_speed),
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.SemiBold
+                    ),
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "0.5x",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                    Slider(
+                        value = mainSpeed,
+                        onValueChange = { onMainSpeedChange?.invoke(it) },
+                        valueRange = 0.5f..2.0f,
+                        steps = 14, // 0.1 increments
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        text = "2.0x",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                }
+                Text(
+                    text = stringResource(R.string.current_speed, mainSpeed),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(bottom = 32.dp)
+                )
+            }
+
+            Divider(modifier = Modifier.padding(bottom = 24.dp))
+
+            // Main Voice for All Documents
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.use_main_voice_for_all),
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    )
+                    Text(
+                        text = stringResource(R.string.override_voice_settings),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                }
+                Switch(
+                    checked = useMainVoiceForAll,
+                    onCheckedChange = { onMainVoiceToggle?.invoke(it) }
+                )
+            }
+
+            // Voice Selection (visible when main voice is enabled)
+            if (useMainVoiceForAll) {
+                Text(
+                    text = stringResource(R.string.main_voice),
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.SemiBold
+                    ),
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+
+                // Korean Voices
+                Text(
+                    text = stringResource(R.string.korean),
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontWeight = FontWeight.Medium
+                    ),
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    listOf("nminseo" to "Minseo", "nshasha" to "Shasha", "danna" to "Movie Choi", "vmaum" to "Mammom").forEach { (id, name) ->
+                        FilterChip(
+                            selected = mainVoiceId == id,
+                            onClick = { onMainVoiceChange?.invoke(id) },
+                            label = { Text(name, fontSize = 12.sp) },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+
+                // English Voices
+                Text(
+                    text = stringResource(R.string.english),
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontWeight = FontWeight.Medium
+                    ),
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 32.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    listOf("nanna" to "Anna", "nclara" to "Clara", "matt" to "Matt").forEach { (id, name) ->
+                        FilterChip(
+                            selected = mainVoiceId == id,
+                            onClick = { onMainVoiceChange?.invoke(id) },
+                            label = { Text(name) },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+
+            Divider(modifier = Modifier.padding(bottom = 24.dp))
+
+            // Live Scan Bar Style
+            Text(
+                text = stringResource(R.string.live_scan_bar_style),
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontWeight = FontWeight.SemiBold
+                ),
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 32.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                FilterChip(
+                    selected = liveScanBarStyle == com.example.voicereaderapp.domain.model.LiveScanBarStyle.EDGE_BAR,
+                    onClick = { onLiveScanBarStyleChange?.invoke(com.example.voicereaderapp.domain.model.LiveScanBarStyle.EDGE_BAR) },
+                    label = { Text(stringResource(R.string.edge_bar)) },
+                    modifier = Modifier.weight(1f)
+                )
+                FilterChip(
+                    selected = liveScanBarStyle == com.example.voicereaderapp.domain.model.LiveScanBarStyle.CIRCLE_BUTTON,
+                    onClick = { onLiveScanBarStyleChange?.invoke(com.example.voicereaderapp.domain.model.LiveScanBarStyle.CIRCLE_BUTTON) },
+                    label = { Text(stringResource(R.string.circle_button)) },
+                    modifier = Modifier.weight(1f)
+                )
             }
         }
     }

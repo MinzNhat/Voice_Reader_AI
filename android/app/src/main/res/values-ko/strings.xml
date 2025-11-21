@@ -16,19 +16,35 @@
 
     <!-- Reader Settings -->
     <string name="reader_settings_title">리더 설정</string>
+    <string name="reading_settings">읽기 설정</string>
     <string name="playback_speed">재생 속도</string>
+    <string name="language">언어</string>
     <string name="voice">음성</string>
     <string name="voice_female">여성</string>
     <string name="voice_male">남성</string>
     <string name="selected">선택됨</string>
+    <string name="locked">잠김</string>
+    <string name="locked_by_global">전체 설정으로 잠김</string>
 
     <!-- Index Screen -->
+    <string name="good_morning">좋은 아침이에요 ☀️</string>
+    <string name="good_afternoon">안녕하세요 👋</string>
+    <string name="good_evening">좋은 저녁이에요 🌙</string>
+    <string name="good_night">좋은 밤 되세요 🌚</string>
+    <string name="ready_to_listen">문서를 계속 들을 준비가 되셨나요?</string>
     <string name="continue_listening">계속 듣기</string>
     <string name="recently_added">최근 추가됨</string>
     <string name="import_document">문서 가져오기</string>
     <string name="live_reader">라이브 리더</string>
     <string name="empty_library">문서가 없습니다</string>
     <string name="empty_library_description">시작하려면 PDF 또는 문서를 가져오세요</string>
+    <string name="back">뒤로</string>
+    <string name="import_and_listen">가져오기 &amp; 듣기</string>
+    <string name="albums">앨범</string>
+    <string name="files">파일</string>
+    <string name="live_scan">라이브 스캔</string>
+    <string name="scan_text_in_other_apps">다른 앱의 텍스트 스캔</string>
+    <string name="progress">진행률 %d%%</string>
 
     <!-- Reader Screen -->
     <string name="loading">로딩 중…</string>
@@ -55,10 +71,38 @@
 
     <!-- Notes -->
     <string name="note_title">메모</string>
+    <string name="all_notes">모든 메모</string>
     <string name="note_save">저장</string>
     <string name="note_cancel">취소</string>
     <string name="note_delete">삭제</string>
     <string name="note_edit">편집</string>
+    <string name="note_rename">이름 바꾸기</string>
+    <string name="new_note">새 메모</string>
+    <string name="untitled_note">제목 없는 메모</string>
+    <string name="no_documents_yet">문서가 없습니다. 파일을 가져와 보세요!</string>
+    <string name="rename_document">문서 이름 바꾸기</string>
+    <string name="enter_new_name">이 문서의 새 이름을 입력하세요:</string>
+    <string name="no_notes_yet">메모가 없습니다. \'+\'를 눌러 생성하세요.</string>
+    <string name="more_options">더 보기</string>
+    <string name="add_new_note">새 메모 추가</string>
+    <string name="close_notes">메모 닫기</string>
+    <string name="rename_note_dialog">메모 이름 바꾸기</string>
+    <string name="delete_note">메모 삭제</string>
+    <string name="delete_note_confirm">이 메모를 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.</string>
+
+    <!-- Global Settings -->
+    <string name="use_main_speed_for_all">모든 문서에 메인 속도 사용</string>
+    <string name="override_speed_settings">개별 문서 속도 설정 무시</string>
+    <string name="main_speed">메인 속도</string>
+    <string name="current_speed">현재 속도: %.1f배</string>
+    <string name="use_main_voice_for_all">모든 문서에 메인 음성 사용</string>
+    <string name="override_voice_settings">개별 문서 음성 설정 무시</string>
+    <string name="main_voice">메인 음성</string>
+    <string name="korean">한국어</string>
+    <string name="english">영어</string>
+    <string name="live_scan_bar_style">라이브 스캔 바 스타일</string>
+    <string name="edge_bar">엣지 바</string>
+    <string name="circle_button">원형 버튼</string>
 
     <!-- Errors -->
     <string name="error_title">오류</string>
@@ -72,4 +116,7 @@
     <string name="summarize">요약</string>
     <string name="change_voice">음성 변경</string>
     <string name="reading_speed">읽기 속도: %.1f배</string>
+    <string name="rewind_5_seconds">5초 되감기</string>
+    <string name="forward_5_seconds">5초 빨리감기</string>
+    <string name="play_pause">재생/일시정지</string>
 </resources>

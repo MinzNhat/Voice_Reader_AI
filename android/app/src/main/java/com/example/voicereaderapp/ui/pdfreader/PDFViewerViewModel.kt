@@ -13,6 +13,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.io.File
 import javax.inject.Inject
@@ -104,52 +105,123 @@ class PDFViewerViewModel @Inject constructor(
      * Preserves existing caches for other voices
      */
     private fun saveAudioToCache(audioBase64: String, wordTimings: List<WordTiming>, voiceId: String, language: String) {
+        // Validate audio data before caching
+        if (audioBase64.isEmpty()) {
+            android.util.Log.e("PDFViewerViewModel", "❌ Cannot cache empty audio!")
+            return
+        }
+        if (wordTimings.isEmpty()) {
+            android.util.Log.e("PDFViewerViewModel", "❌ Cannot cache audio without timings!")
+            return
+        }
+
         currentDocumentId?.let { docId ->
             viewModelScope.launch {
                 try {
+                    android.util.Log.d("PDFViewerViewModel", "💾 Caching audio for document: $docId")
+                    android.util.Log.d("PDFViewerViewModel", "   - Voice: $voiceId, Language: $language")
+                    android.util.Log.d("PDFViewerViewModel", "   - Audio length: ${audioBase64.length}")
+                    android.util.Log.d("PDFViewerViewModel", "   - Timings count: ${wordTimings.size}")
+
                     val document = getDocumentByIdUseCase(docId)
-                    document?.let {
-                        // Load existing cache map or create new one
-                        val existingCacheMap = try {
-                            val type = object : TypeToken<Map<String, AudioCacheEntry>>() {}.type
-                            gson.fromJson<Map<String, AudioCacheEntry>>(it.audioCacheJson ?: "{}", type) ?: emptyMap()
-                        } catch (e: Exception) {
-                            emptyMap()
-                        }
-
-                        // Add/update cache for current voice
-                        val cacheKey = getCacheKey(voiceId, language)
-                        val newCacheMap = existingCacheMap.toMutableMap()
-                        newCacheMap[cacheKey] = AudioCacheEntry(audio = audioBase64, timings = wordTimings)
-
-                        // Serialize back to JSON
-                        val updatedCacheJson = gson.toJson(newCacheMap)
-
-                        val updatedDoc = it.copy(
-                            audioCacheJson = updatedCacheJson
-                        )
-                        saveDocumentUseCase(updatedDoc)
-                        android.util.Log.d("PDFViewerViewModel", "💾 Audio cached for $cacheKey (keeping other caches)")
+                    if (document == null) {
+                        android.util.Log.e("PDFViewerViewModel", "❌ Document not found for caching: $docId")
+                        return@launch
                     }
+
+                    // Load existing cache map or create new one
+                    val existingCacheMap = try {
+                        val type = object : TypeToken<Map<String, AudioCacheEntry>>() {}.type
+                        val existingJson = document.audioCacheJson
+                        if (existingJson.isNullOrEmpty()) {
+                            android.util.Log.d("PDFViewerViewModel", "   - No existing cache, creating new")
+                            emptyMap()
+                        } else {
+                            android.util.Log.d("PDFViewerViewModel", "   - Loading existing cache (${existingJson.length} chars)")
+                            gson.fromJson<Map<String, AudioCacheEntry>>(existingJson, type) ?: emptyMap()
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.e("PDFViewerViewModel", "   - Failed to parse existing cache, creating new", e)
+                        emptyMap()
+                    }
+
+                    // Add/update cache for current voice
+                    val cacheKey = getCacheKey(voiceId, language)
+                    val newCacheMap = existingCacheMap.toMutableMap()
+                    newCacheMap[cacheKey] = AudioCacheEntry(audio = audioBase64, timings = wordTimings)
+
+                    android.util.Log.d("PDFViewerViewModel", "   - Cache now contains ${newCacheMap.size} voice(s): ${newCacheMap.keys.joinToString()}")
+
+                    // Serialize back to JSON
+                    val updatedCacheJson = gson.toJson(newCacheMap)
+                    android.util.Log.d("PDFViewerViewModel", "   - Serialized cache size: ${updatedCacheJson.length} chars")
+
+                    val updatedDoc = document.copy(
+                        audioCacheJson = updatedCacheJson
+                    )
+                    saveDocumentUseCase(updatedDoc)
+                    android.util.Log.d("PDFViewerViewModel", "✅ Audio successfully cached for $cacheKey")
                 } catch (e: Exception) {
-                    android.util.Log.e("PDFViewerViewModel", "Failed to cache audio", e)
+                    android.util.Log.e("PDFViewerViewModel", "❌ Failed to cache audio", e)
                 }
             }
+        } ?: run {
+            android.util.Log.e("PDFViewerViewModel", "❌ Cannot cache audio - currentDocumentId is null!")
         }
     }
 
     init {
-        // Load global voice settings as defaults
+        // Load global voice settings and apply main voice/speed if enabled
         viewModelScope.launch {
             getVoiceSettingsUseCase().collect { settings ->
-                // Only update if no document-specific settings are set
-                if (_uiState.value.selectedSpeaker == "matt" && _uiState.value.selectedLanguage == "en-US") {
-                    _uiState.value = _uiState.value.copy(
-                        selectedSpeaker = settings.voiceId,
-                        selectedLanguage = settings.language,
-                        playbackSpeed = settings.speed
-                    )
+                val currentState = _uiState.value
+
+                // Apply main voice if enabled, otherwise use current/document-specific voice
+                val voiceToUse = if (settings.useMainVoiceForAll) {
+                    settings.mainVoiceId
+                } else {
+                    // Keep current voice if already set, otherwise use global default
+                    if (currentState.selectedSpeaker == "matt" && currentState.selectedLanguage == "en-US") {
+                        settings.voiceId
+                    } else {
+                        currentState.selectedSpeaker
+                    }
                 }
+
+                // Apply main speed if enabled, otherwise use current/document-specific speed
+                val speedToUse = if (settings.useMainSpeedForAll) {
+                    settings.mainSpeed
+                } else {
+                    // Keep current speed if already set, otherwise use global default
+                    if (currentState.playbackSpeed == 1.0f) {
+                        settings.speed
+                    } else {
+                        currentState.playbackSpeed
+                    }
+                }
+
+                // Determine language based on voice (if main voice is used)
+                val languageToUse = if (settings.useMainVoiceForAll) {
+                    // Map main voice to language
+                    when (settings.mainVoiceId) {
+                        "nminseo", "nshasha", "danna", "vmaum" -> "ko-KR"
+                        "nanna", "nclara", "matt" -> "en-US"
+                        else -> settings.language
+                    }
+                } else {
+                    // Keep current language if already set, otherwise use global default
+                    if (currentState.selectedLanguage == "en-US" && currentState.selectedSpeaker == "matt") {
+                        settings.language
+                    } else {
+                        currentState.selectedLanguage
+                    }
+                }
+
+                _uiState.value = currentState.copy(
+                    selectedSpeaker = voiceToUse,
+                    selectedLanguage = languageToUse,
+                    playbackSpeed = speedToUse
+                )
             }
         }
     }
@@ -165,8 +237,11 @@ class PDFViewerViewModel @Inject constructor(
             try {
                 _uiState.value = _uiState.value.copy(isLoading = true)
 
+                android.util.Log.d("PDFViewerViewModel", "📂 Loading saved document: $documentId")
+
                 val document = getDocumentByIdUseCase(documentId)
                 if (document == null) {
+                    android.util.Log.e("PDFViewerViewModel", "❌ Document not found in database: $documentId")
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
                         error = "Document not found"
@@ -175,56 +250,98 @@ class PDFViewerViewModel @Inject constructor(
                 }
 
                 currentDocumentId = documentId
+                android.util.Log.d("PDFViewerViewModel", "✅ Document loaded: ${document.title}")
+                android.util.Log.d("PDFViewerViewModel", "   - Content length: ${document.content?.length ?: 0}")
+                android.util.Log.d("PDFViewerViewModel", "   - Last position: ${document.lastReadPosition}")
+                android.util.Log.d("PDFViewerViewModel", "   - Cache JSON length: ${document.audioCacheJson?.length ?: 0}")
 
-                // Load document-specific voice settings if available
-                val voiceId = document.voiceId ?: _uiState.value.selectedSpeaker
-                val language = document.language ?: _uiState.value.selectedLanguage
-                val speed = document.speed ?: _uiState.value.playbackSpeed
+                // Get current global settings to check main voice/speed flags
+                val globalSettings = getVoiceSettingsUseCase().first()
+
+                // Load document-specific voice settings, but respect main settings if enabled
+                val voiceId = if (globalSettings.useMainVoiceForAll) {
+                    globalSettings.mainVoiceId
+                } else {
+                    document.voiceId ?: _uiState.value.selectedSpeaker
+                }
+
+                val language = if (globalSettings.useMainVoiceForAll) {
+                    // Map main voice to language
+                    when (globalSettings.mainVoiceId) {
+                        "nminseo", "nshasha", "danna", "vmaum" -> "ko-KR"
+                        "nanna", "nclara", "matt" -> "en-US"
+                        else -> document.language ?: _uiState.value.selectedLanguage
+                    }
+                } else {
+                    document.language ?: _uiState.value.selectedLanguage
+                }
+
+                val speed = if (globalSettings.useMainSpeedForAll) {
+                    globalSettings.mainSpeed
+                } else {
+                    document.speed ?: _uiState.value.playbackSpeed
+                }
+
+                android.util.Log.d("PDFViewerViewModel", "   - Voice settings: $voiceId, $language, speed=$speed")
+                android.util.Log.d("PDFViewerViewModel", "   - Main voice/speed enabled: ${globalSettings.useMainVoiceForAll}/${globalSettings.useMainSpeedForAll}")
 
                 // Check if audio is cached for this specific voice+language
                 val cachedAudio = getAudioFromCache(document, voiceId, language)
 
                 if (cachedAudio != null) {
-                    // Load cached audio - no TTS API call needed!
-                    android.util.Log.d("PDFViewerViewModel", "✅ Loading cached audio for ${voiceId}_${language} - NO API CALL")
+                    // Validate cached audio
+                    val audioLength = cachedAudio.audio.length
+                    val timingsCount = cachedAudio.timings.size
 
-                    _uiState.value = _uiState.value.copy(
-                        isLoading = false,
-                        documentTitle = document.title,
-                        ocrText = document.content,
-                        selectedSpeaker = voiceId,
-                        selectedLanguage = language,
-                        playbackSpeed = speed,
-                        audioBase64 = cachedAudio.audio,
-                        wordTimings = cachedAudio.timings,
-                        currentWordIndex = document.lastReadPosition,
-                        currentPlaybackPosition = if (document.lastReadPosition >= 0 && document.lastReadPosition < cachedAudio.timings.size) {
-                            cachedAudio.timings[document.lastReadPosition].startMs
-                        } else {
-                            0L
-                        }
-                    )
-                } else {
-                    // No cached audio for this voice - need to generate it
-                    android.util.Log.d("PDFViewerViewModel", "⚠️ No cached audio for ${voiceId}_${language} - calling TTS API")
+                    android.util.Log.d("PDFViewerViewModel", "✅ Loading cached audio for ${voiceId}_${language}")
+                    android.util.Log.d("PDFViewerViewModel", "   - Audio base64 length: $audioLength")
+                    android.util.Log.d("PDFViewerViewModel", "   - Word timings count: $timingsCount")
 
-                    _uiState.value = _uiState.value.copy(
-                        isLoading = false,
-                        documentTitle = document.title,
-                        ocrText = document.content,
-                        selectedSpeaker = voiceId,
-                        selectedLanguage = language,
-                        playbackSpeed = speed,
-                        currentWordIndex = document.lastReadPosition
-                    )
-
-                    // Generate audio from saved text with document-specific voice
-                    // After audio is generated, seek to the saved position
-                    generateSpeech(voiceId, restorePosition = document.lastReadPosition)
+                    if (audioLength == 0) {
+                        android.util.Log.e("PDFViewerViewModel", "❌ Cached audio is empty! Will regenerate.")
+                        // Fall through to regeneration
+                    } else if (timingsCount == 0) {
+                        android.util.Log.e("PDFViewerViewModel", "❌ Cached timings are empty! Will regenerate.")
+                        // Fall through to regeneration
+                    } else {
+                        // Load cached audio - no TTS API call needed!
+                        _uiState.value = _uiState.value.copy(
+                            isLoading = false,
+                            documentTitle = document.title,
+                            ocrText = document.content,
+                            selectedSpeaker = voiceId,
+                            selectedLanguage = language,
+                            playbackSpeed = speed,
+                            audioBase64 = cachedAudio.audio,
+                            wordTimings = cachedAudio.timings,
+                            currentWordIndex = document.lastReadPosition,
+                            currentPlaybackPosition = if (document.lastReadPosition >= 0 && document.lastReadPosition < cachedAudio.timings.size) {
+                                cachedAudio.timings[document.lastReadPosition].startMs
+                            } else {
+                                0L
+                            }
+                        )
+                        android.util.Log.d("PDFViewerViewModel", "✅ Cached audio loaded successfully - READY TO PLAY")
+                        return@launch
+                    }
                 }
 
+                // No cached audio for this voice - need to generate it
+                android.util.Log.d("PDFViewerViewModel", "⚠️ No cached audio for ${voiceId}_${language} - will call TTS API when user presses play")
+
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    documentTitle = document.title,
+                    ocrText = document.content,
+                    selectedSpeaker = voiceId,
+                    selectedLanguage = language,
+                    playbackSpeed = speed,
+                    currentWordIndex = document.lastReadPosition,
+                    audioBase64 = null // Explicitly set to null to trigger generation on play
+                )
+
             } catch (e: Exception) {
-                android.util.Log.e("PDFViewerViewModel", "Failed to load saved document", e)
+                android.util.Log.e("PDFViewerViewModel", "❌ Failed to load saved document", e)
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
                     error = "Failed to load document: ${e.message}"
@@ -456,54 +573,76 @@ class PDFViewerViewModel @Inject constructor(
      * Play generated audio with real-time word highlighting
      */
     fun playAudio() {
-        val audioBase64 = _uiState.value.audioBase64 ?: return
+        val audioBase64 = _uiState.value.audioBase64 ?: run {
+            android.util.Log.e("PDFViewerViewModel", "❌ Cannot play audio - audioBase64 is null")
+            _uiState.value = _uiState.value.copy(
+                error = "Audio not available. Please regenerate audio."
+            )
+            return
+        }
         val timings = _uiState.value.wordTimings
         val speed = _uiState.value.playbackSpeed
 
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isPlaying = true)
+            try {
+                _uiState.value = _uiState.value.copy(isPlaying = true, error = null)
 
-            // If we have a non-zero current position (from restore or seek), start from there
-            val startPosition = _uiState.value.currentPlaybackPosition
+                android.util.Log.d("PDFViewerViewModel", "🎵 Starting playback - audio length: ${audioBase64.length}, speed: $speed")
 
-            ttsRepository.playAudio(
-                base64Audio = audioBase64,
-                playbackSpeed = speed,
-                onProgress = { currentMs ->
-                    // Update current playback position
-                    _uiState.value = _uiState.value.copy(
-                        currentPlaybackPosition = currentMs
-                    )
+                // If we have a non-zero current position (from restore or seek), start from there
+                val startPosition = _uiState.value.currentPlaybackPosition
+                android.util.Log.d("PDFViewerViewModel", "📍 Start position: ${startPosition}ms")
 
-                    // Find current word based on timing
-                    val currentWordIndex = timings.indexOfLast { timing ->
-                        currentMs >= timing.startMs && currentMs < timing.endMs
-                    }
-
-                    if (currentWordIndex != _uiState.value.currentWordIndex) {
+                ttsRepository.playAudio(
+                    base64Audio = audioBase64,
+                    playbackSpeed = speed,
+                    onProgress = { currentMs ->
+                        // Update current playback position
                         _uiState.value = _uiState.value.copy(
-                            currentWordIndex = currentWordIndex
+                            currentPlaybackPosition = currentMs
                         )
-                        // Save position every 10 words to avoid too many database writes
-                        if (currentWordIndex % 10 == 0) {
-                            saveReadingPosition(currentWordIndex)
-                        }
-                    }
-                },
-                onComplete = {
-                    // Save final position before resetting
-                    saveReadingPosition(_uiState.value.currentWordIndex)
-                    _uiState.value = _uiState.value.copy(
-                        isPlaying = false,
-                        currentWordIndex = -1,
-                        currentPlaybackPosition = 0
-                    )
-                }
-            )
 
-            // If we had a non-zero start position, seek to it after starting playback
-            if (startPosition > 0) {
-                ttsRepository.seekTo(startPosition)
+                        // Find current word based on timing
+                        val currentWordIndex = timings.indexOfLast { timing ->
+                            currentMs >= timing.startMs && currentMs < timing.endMs
+                        }
+
+                        if (currentWordIndex != _uiState.value.currentWordIndex) {
+                            _uiState.value = _uiState.value.copy(
+                                currentWordIndex = currentWordIndex
+                            )
+                            // Save position every 10 words to avoid too many database writes
+                            if (currentWordIndex % 10 == 0) {
+                                saveReadingPosition(currentWordIndex)
+                            }
+                        }
+                    },
+                    onComplete = {
+                        // Save final position before resetting
+                        saveReadingPosition(_uiState.value.currentWordIndex)
+                        _uiState.value = _uiState.value.copy(
+                            isPlaying = false,
+                            currentWordIndex = -1,
+                            currentPlaybackPosition = 0
+                        )
+                        android.util.Log.d("PDFViewerViewModel", "✅ Playback completed")
+                    }
+                )
+
+                // If we had a non-zero start position, seek to it after starting playback
+                if (startPosition > 0) {
+                    android.util.Log.d("PDFViewerViewModel", "⏩ Seeking to saved position: ${startPosition}ms")
+                    ttsRepository.seekTo(startPosition)
+                }
+
+                android.util.Log.d("PDFViewerViewModel", "✅ Audio playback started successfully")
+
+            } catch (e: Exception) {
+                android.util.Log.e("PDFViewerViewModel", "❌ Audio playback failed", e)
+                _uiState.value = _uiState.value.copy(
+                    isPlaying = false,
+                    error = "Failed to play audio: ${e.message}. Please try regenerating the audio."
+                )
             }
         }
     }
@@ -698,7 +837,7 @@ class PDFViewerViewModel @Inject constructor(
 
         val wasPlaying = _uiState.value.isPlaying
         val currentPos = ttsRepository.getCurrentPosition()
-        val newPos = (currentPos - 10000).coerceAtLeast(0L)
+        val newPos = (currentPos - 5000).coerceAtLeast(0L)
 
         ttsRepository.seekTo(newPos)
 
@@ -731,7 +870,7 @@ class PDFViewerViewModel @Inject constructor(
         val wasPlaying = _uiState.value.isPlaying
         val currentPos = ttsRepository.getCurrentPosition()
         val duration = ttsRepository.getDuration()
-        val newPos = (currentPos + 10000).coerceAtMost(duration)
+        val newPos = (currentPos + 5000).coerceAtMost(duration)
 
         ttsRepository.seekTo(newPos)
 

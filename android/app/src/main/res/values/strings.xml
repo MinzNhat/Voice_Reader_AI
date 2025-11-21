@@ -16,19 +16,35 @@
 
     <!-- Reader Settings -->
     <string name="reader_settings_title">Reader Settings</string>
+    <string name="reading_settings">Reading Settings</string>
     <string name="playback_speed">Playback Speed</string>
+    <string name="language">Language</string>
     <string name="voice">Voice</string>
     <string name="voice_female">Female</string>
     <string name="voice_male">Male</string>
     <string name="selected">Selected</string>
+    <string name="locked">Locked</string>
+    <string name="locked_by_global">Locked by Global Settings</string>
 
     <!-- Index Screen -->
+    <string name="good_morning">Good morning ☀️</string>
+    <string name="good_afternoon">Good afternoon 👋</string>
+    <string name="good_evening">Good evening 🌙</string>
+    <string name="good_night">Good night 🌚</string>
+    <string name="ready_to_listen">Ready to keep listening to your documents?</string>
     <string name="continue_listening">Continue Listening</string>
     <string name="recently_added">Recently Added</string>
     <string name="import_document">Import Document</string>
     <string name="live_reader">Live Reader</string>
     <string name="empty_library">No documents yet</string>
     <string name="empty_library_description">Import a PDF or document to get started</string>
+    <string name="back">Back</string>
+    <string name="import_and_listen">Import &amp; Listen</string>
+    <string name="albums">Albums</string>
+    <string name="files">Files</string>
+    <string name="live_scan">Live Scan</string>
+    <string name="scan_text_in_other_apps">Scan text in other apps</string>
+    <string name="progress">Progress %d%%</string>
 
     <!-- Reader Screen -->
     <string name="loading">Loading…</string>
@@ -55,10 +71,38 @@
 
     <!-- Notes -->
     <string name="note_title">Note</string>
+    <string name="all_notes">All Notes</string>
     <string name="note_save">Save</string>
     <string name="note_cancel">Cancel</string>
     <string name="note_delete">Delete</string>
     <string name="note_edit">Edit</string>
+    <string name="note_rename">Rename</string>
+    <string name="new_note">New Note</string>
+    <string name="untitled_note">Untitled Note</string>
+    <string name="no_documents_yet">No documents yet. Try importing a file!</string>
+    <string name="rename_document">Rename Document</string>
+    <string name="enter_new_name">Enter a new name for this document:</string>
+    <string name="no_notes_yet">No notes yet. Tap \'+\' to create one.</string>
+    <string name="more_options">More Options</string>
+    <string name="add_new_note">Add New Note</string>
+    <string name="close_notes">Close Notes</string>
+    <string name="rename_note_dialog">Rename Note</string>
+    <string name="delete_note">Delete Note</string>
+    <string name="delete_note_confirm">Are you sure you want to delete this note? This action cannot be undone.</string>
+
+    <!-- Global Settings -->
+    <string name="use_main_speed_for_all">Use Main Speed for All Documents</string>
+    <string name="override_speed_settings">Override individual document speed settings</string>
+    <string name="main_speed">Main Speed</string>
+    <string name="current_speed">Current speed: %.1fx</string>
+    <string name="use_main_voice_for_all">Use Main Voice for All Documents</string>
+    <string name="override_voice_settings">Override individual document voice settings</string>
+    <string name="main_voice">Main Voice</string>
+    <string name="korean">Korean</string>
+    <string name="english">English</string>
+    <string name="live_scan_bar_style">Live Scan Bar Style</string>
+    <string name="edge_bar">Edge Bar</string>
+    <string name="circle_button">Circle Button</string>
 
     <!-- Errors -->
     <string name="error_title">Error</string>
@@ -72,4 +116,7 @@
     <string name="summarize">Summarize</string>
     <string name="change_voice">Change Voice</string>
     <string name="reading_speed">Reading speed: %.1fx</string>
+    <string name="rewind_5_seconds">Rewind 5 seconds</string>
+    <string name="forward_5_seconds">Forward 5 seconds</string>
+    <string name="play_pause">Play/Pause</string>
 </resources>

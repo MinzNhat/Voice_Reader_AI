@@ -136,6 +136,66 @@ class SettingsViewModel @Inject constructor(
     }
 
     /**
+     * Updates the main voice for all documents setting.
+     *
+     * @param useMainVoice Whether to use main voice for all documents
+     */
+    fun updateUseMainVoiceForAll(useMainVoice: Boolean) {
+        _uiState.value = _uiState.value.copy(
+            settings = _uiState.value.settings.copy(useMainVoiceForAll = useMainVoice)
+        )
+        saveSettings()
+    }
+
+    /**
+     * Updates the main voice ID.
+     *
+     * @param mainVoiceId Main voice identifier
+     */
+    fun updateMainVoiceId(mainVoiceId: String) {
+        _uiState.value = _uiState.value.copy(
+            settings = _uiState.value.settings.copy(mainVoiceId = mainVoiceId)
+        )
+        saveSettings()
+    }
+
+    /**
+     * Updates the live scan bar style.
+     *
+     * @param style Live scan bar style (EDGE_BAR, CIRCLE_BUTTON)
+     */
+    fun updateLiveScanBarStyle(style: com.example.voicereaderapp.domain.model.LiveScanBarStyle) {
+        _uiState.value = _uiState.value.copy(
+            settings = _uiState.value.settings.copy(liveScanBarStyle = style)
+        )
+        saveSettings()
+    }
+
+    /**
+     * Updates the main speed for all documents setting.
+     *
+     * @param useMainSpeed Whether to use main speed for all documents
+     */
+    fun updateUseMainSpeedForAll(useMainSpeed: Boolean) {
+        _uiState.value = _uiState.value.copy(
+            settings = _uiState.value.settings.copy(useMainSpeedForAll = useMainSpeed)
+        )
+        saveSettings()
+    }
+
+    /**
+     * Updates the main speed value.
+     *
+     * @param mainSpeed Main speed value
+     */
+    fun updateMainSpeed(mainSpeed: Float) {
+        _uiState.value = _uiState.value.copy(
+            settings = _uiState.value.settings.copy(mainSpeed = mainSpeed)
+        )
+        saveSettings()
+    }
+
+    /**
      * Saves the current settings to repository.
      */
     fun saveSettings() {

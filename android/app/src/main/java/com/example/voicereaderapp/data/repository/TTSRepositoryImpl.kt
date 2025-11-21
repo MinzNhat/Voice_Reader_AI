@@ -27,14 +27,18 @@ class TTSRepositoryImpl @Inject constructor(
 
     override suspend fun generateSpeech(
         text: String,
-        speaker: String
+        speaker: String,
+        language: String
     ): Result<String> {
         return withContext(Dispatchers.IO) {
             try {
-                // Use DTO TtsRequest
+                android.util.Log.d("TTSRepository", "Generating speech - voice: $speaker, language: $language, text length: ${text.length}")
+
+                // Use DTO TtsRequest with language parameter
                 val request = TtsRequest(
                     text = text,
-                    voice = speaker
+                    voice = speaker,
+                    language = language
                 )
 
                 // Call synthesizeSpeech (not generateTTS)
@@ -94,8 +98,17 @@ class TTSRepositoryImpl @Inject constructor(
                 // Stop any existing playback
                 stopAudio()
 
+                android.util.Log.d("TTSRepository", "🎵 Starting audio playback - base64 length: ${base64Audio.length}")
+
                 // Decode base64 to bytes
-                val audioBytes = Base64.decode(base64Audio, Base64.DEFAULT)
+                val audioBytes = try {
+                    Base64.decode(base64Audio, Base64.DEFAULT)
+                } catch (e: IllegalArgumentException) {
+                    android.util.Log.e("TTSRepository", "❌ Failed to decode base64 audio", e)
+                    throw Exception("Invalid audio format - Base64 decode failed", e)
+                }
+
+                android.util.Log.d("TTSRepository", "✅ Audio decoded - ${audioBytes.size} bytes")
 
                 // Create temp file
                 val tempFile = File.createTempFile("tts_audio", ".mp3")
@@ -106,25 +119,42 @@ class TTSRepositoryImpl @Inject constructor(
                     fos.write(audioBytes)
                 }
 
+                android.util.Log.d("TTSRepository", "✅ Audio written to temp file: ${tempFile.absolutePath}")
+
                 // Initialize MediaPlayer
                 mediaPlayer = MediaPlayer().apply {
-                    setDataSource(tempFile.absolutePath)
-                    prepare()
+                    try {
+                        setDataSource(tempFile.absolutePath)
+                        prepare()
+                        android.util.Log.d("TTSRepository", "✅ MediaPlayer prepared - duration: ${duration}ms")
+                    } catch (e: Exception) {
+                        android.util.Log.e("TTSRepository", "❌ MediaPlayer preparation failed", e)
+                        throw Exception("Failed to prepare audio playback", e)
+                    }
 
                     // Set playback speed (API 23+)
                     try {
                         playbackParams = playbackParams.setSpeed(playbackSpeed.coerceIn(0.5f, 2.0f))
+                        android.util.Log.d("TTSRepository", "✅ Playback speed set to: $playbackSpeed")
                     } catch (e: Exception) {
                         // Fallback for older devices
-                        e.printStackTrace()
+                        android.util.Log.w("TTSRepository", "⚠️ Could not set playback speed", e)
                     }
 
                     setOnCompletionListener {
+                        android.util.Log.d("TTSRepository", "🎵 Audio playback completed")
                         stopAudio()
                         onComplete()
                     }
 
+                    setOnErrorListener { mp, what, extra ->
+                        android.util.Log.e("TTSRepository", "❌ MediaPlayer error - what: $what, extra: $extra")
+                        stopAudio()
+                        false
+                    }
+
                     start()
+                    android.util.Log.d("TTSRepository", "✅ MediaPlayer started")
                 }
 
                 // Start progress tracking
@@ -137,8 +167,10 @@ class TTSRepositoryImpl @Inject constructor(
                 }
 
             } catch (e: Exception) {
+                android.util.Log.e("TTSRepository", "❌ playAudio failed", e)
                 e.printStackTrace()
                 stopAudio()
+                throw e  // Propagate error to ViewModel
             }
         }
     }

@@ -20,7 +20,7 @@ import com.example.voicereaderapp.data.local.entity.DocumentEntity
  */
 @Database(
     entities = [DocumentEntity::class, NoteEntity::class],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class VoiceReaderDatabase : RoomDatabase() {
@@ -75,6 +75,17 @@ abstract class VoiceReaderDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 // Version 3 - không có thay đổi schema, chỉ để force refresh
                 // Tất cả schema đã đúng ở version 2
+            }
+        }
+
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Add new columns to notes_table for document linking
+                db.execSQL("ALTER TABLE notes_table ADD COLUMN documentId TEXT DEFAULT NULL")
+                db.execSQL("ALTER TABLE notes_table ADD COLUMN documentTitle TEXT DEFAULT NULL")
+                db.execSQL("ALTER TABLE notes_table ADD COLUMN createdAt INTEGER NOT NULL DEFAULT 0")
+                // Update createdAt with lastModified values for existing notes
+                db.execSQL("UPDATE notes_table SET createdAt = lastModified WHERE createdAt = 0")
             }
         }
     }

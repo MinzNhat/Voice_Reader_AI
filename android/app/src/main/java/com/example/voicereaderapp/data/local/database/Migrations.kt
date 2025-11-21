@@ -7,7 +7,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  * Database migration from version 1 to 2.
  * Adds voice configuration columns to the documents table.
  */
-val MIGRATION_1_2 = object : Migration(1, 2) {
+val MIGRATION_1_2 = object : Migration(2, 3) {
     override fun migrate(database: SupportSQLiteDatabase) {
         // Add voiceId column (nullable)
         database.execSQL(

@@ -12,11 +12,13 @@ interface TTSRepository {
      * Generate speech from text
      * @param text Text to convert to speech
      * @param speaker Speaker voice name (default: "matt" - male English)
+     * @param language Language code (default: "en-US")
      * @return Result containing base64 encoded MP3 audio
      */
     suspend fun generateSpeech(
         text: String,
-        speaker: String = "matt"
+        speaker: String = "matt",
+        language: String = "en-US"
     ): Result<String>
 
     /**

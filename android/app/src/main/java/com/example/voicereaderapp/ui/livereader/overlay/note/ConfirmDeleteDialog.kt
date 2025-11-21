@@ -8,8 +8,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.voicereaderapp.R
 
 @Composable
 fun ConfirmDeleteDialog(
@@ -32,7 +34,7 @@ fun ConfirmDeleteDialog(
                 // ✅ THÊM BIỂU TƯỢNG CẢNH BÁO
                 Icon(
                     imageVector = Icons.Outlined.Warning,
-                    contentDescription = "Warning",
+                    contentDescription = stringResource(R.string.delete_note),
                     tint = MaterialTheme.colorScheme.error, // Dùng màu báo lỗi
                     modifier = Modifier.size(48.dp) // Kích thước lớn, nổi bật
                 )
@@ -41,7 +43,7 @@ fun ConfirmDeleteDialog(
 
                 // ✅ NHẤN MẠNH TIÊU ĐỀ
                 Text(
-                    text = "Delete this note?",
+                    text = stringResource(R.string.delete_note),
                     style = MaterialTheme.typography.headlineSmall, // Kiểu chữ to, rõ ràng hơn
                     fontWeight = FontWeight.Bold
                 )
@@ -49,7 +51,7 @@ fun ConfirmDeleteDialog(
                 Spacer(modifier = Modifier.height(8.dp)) // Giảm khoảng cách để nhóm với tiêu đề
 
                 Text(
-                    text = "This action cannot be undone.",
+                    text = stringResource(R.string.delete_note_confirm),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -62,11 +64,11 @@ fun ConfirmDeleteDialog(
                     horizontalArrangement = Arrangement.End
                 ) {
                     TextButton(onClick = onCancel) {
-                        Text("Cancel")
+                        Text(stringResource(R.string.note_cancel))
                     }
                     Spacer(modifier = Modifier.width(8.dp)) // Thêm khoảng cách giữa 2 nút
                     TextButton(onClick = onConfirm) {
-                        Text("Delete", color = MaterialTheme.colorScheme.error)
+                        Text(stringResource(R.string.note_delete), color = MaterialTheme.colorScheme.error)
                     }
                 }
             }

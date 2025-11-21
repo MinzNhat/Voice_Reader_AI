@@ -44,6 +44,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.zIndex
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -58,6 +59,19 @@ import com.example.voicereaderapp.R
 import com.example.voicereaderapp.ui.livereader.overlay.LiveOverlayService
 import com.example.voicereaderapp.ui.pdfreader.DocumentPickerScreen
 import com.example.voicereaderapp.ui.pdfreader.PDFViewerScreen
+import android.app.ActivityManager
+import android.content.Context
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
+import com.example.voicereaderapp.MainActivity
+import com.example.voicereaderapp.ui.livereader.overlay.NoteViewModel
+import com.example.voicereaderapp.ui.livereader.overlay.note.NoteDetailScreen
+import com.example.voicereaderapp.ui.livereader.overlay.note.NoteListScreen
+import com.example.voicereaderapp.ui.settings.GlobalSettingsSheet
+import com.example.voicereaderapp.ui.settings.SettingsViewModel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import java.util.Calendar
 
 // --------------------------------------------------------
 //  ROUTES
@@ -119,13 +133,22 @@ fun IndexWrapper() {
 
         // PDF Viewer for saved documents (from Continue Listening)
         composable(
-            route = "pdf_saved/{documentId}",
-            arguments = listOf(navArgument("documentId") { type = NavType.StringType })
+            route = "pdf_saved/{documentId}?source={source}",
+            arguments = listOf(
+                navArgument("documentId") { type = NavType.StringType },
+                navArgument("source") {
+                    type = NavType.StringType
+                    defaultValue = "index"
+                    nullable = true
+                }
+            )
         ) { backStackEntry ->
             val documentId = backStackEntry.arguments?.getString("documentId")
+            val source = backStackEntry.arguments?.getString("source")
             if (documentId != null) {
                 PDFViewerScreen(
                     documentId = documentId,
+                    source = source,
                     navController = navController
                 )
             } else {
@@ -139,8 +162,14 @@ fun IndexWrapper() {
 //  DATA UI
 // --------------------------------------------------------
 
+enum class ImportSourceType {
+    ALBUMS,
+    FILES
+}
+
 data class ImportSource(
-    val name: String,
+    val type: ImportSourceType,
+    val nameResId: Int,
     val icon: ImageVector,
     val tint: Color
 )
@@ -159,7 +188,8 @@ fun IndexScreen(
     val context = LocalContext.current
 
     // ---------------- Bắt đầu khởi tạo các biến cho livereader -----------------------------
-    var isLiveScanEnabled by remember { mutableStateOf(false) }
+    // Check if service is actually running to sync the toggle state
+    var isLiveScanEnabled by remember { mutableStateOf(isServiceRunning(context)) }
     var wasPermissionRequested by remember { mutableStateOf(false) }
     val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -170,6 +200,9 @@ fun IndexScreen(
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
+                // Always sync toggle state with actual service state
+                isLiveScanEnabled = isServiceRunning(context)
+
                 if (wasPermissionRequested) {
                     wasPermissionRequested = false
                     val hasPermission = Settings.canDrawOverlays(context)
@@ -195,8 +228,12 @@ fun IndexScreen(
 
     // State for global settings sheet
     var showGlobalSettings by remember { mutableStateOf(false) }
-    val settingsViewModel: com.example.voicereaderapp.ui.settings.SettingsViewModel = hiltViewModel()
+
+    // State for notes screen
+    var showNotesScreen by remember { mutableStateOf(false) }
+    val settingsViewModel: SettingsViewModel = hiltViewModel()
     val settingsState by settingsViewModel.uiState.collectAsState()
+    val coroutineScope = rememberCoroutineScope()
 
     // File picker for all document types (PDF, DOCX, Images)
     val allFilesPickerLauncher = rememberLauncherForActivityResult(
@@ -219,10 +256,10 @@ fun IndexScreen(
     }
 
     val importSources = listOf(
-        ImportSource(name = "Albums", Icons.Default.PhotoLibrary, tint = Color(0xFF3B82F6)),
-        ImportSource(name ="Files", Icons.Default.Folder, tint = Color(0xFFFFDB33)),
-//        ImportSource("Gmail", Icons.Default.Email, Color(0xFFEF4444)),
-//        ImportSource("Messenger", Icons.Default.Message, Color(0xFF0EA5E9))
+        ImportSource(ImportSourceType.ALBUMS, R.string.albums, Icons.Default.PhotoLibrary, Color(0xFF3B82F6)),
+        ImportSource(ImportSourceType.FILES, R.string.files, Icons.Default.Folder, Color(0xFFFFDB33))
+//        ImportSource(ImportSourceType.GMAIL, R.string.gmail, Icons.Default.Email, Color(0xFFEF4444)),
+//        ImportSource(ImportSourceType.MESSENGER, R.string.messenger, Icons.Default.Message, Color(0xFF0EA5E9))
     )
     Box(
         modifier = Modifier
@@ -243,6 +280,7 @@ fun IndexScreen(
             containerColor = Color.Transparent,
             topBar = {
                 HomeTopBar(
+                    onNotesClick = { showNotesScreen = true },
                     onSettingsClick = { showGlobalSettings = true }
                 )
             },
@@ -279,12 +317,14 @@ fun IndexScreen(
                         onItemClick = { document ->
                             // Route to appropriate screen based on document type
                             when (document.type) {
-                                DocumentType.PDF -> {
-                                    // PDF documents use PDFViewerScreen with backend TTS
+                                DocumentType.PDF, DocumentType.IMAGE -> {
+                                    // PDF and IMAGE documents use PDFViewerScreen with backend TTS
+                                    Log.d("IndexScreen", "📱 Navigating to PDFViewerScreen for ${document.type}: ${document.id}")
                                     navController.navigate("pdf_saved/${document.id}")
                                 }
                                 else -> {
                                     // Text/Live Screen use ReaderScreen with local TTS
+                                    Log.d("IndexScreen", "📱 Navigating to ReaderScreen for ${document.type}: ${document.id}")
                                     navController.navigate(Screen.Reader.createRoute(document.id))
                                 }
                             }
@@ -303,17 +343,15 @@ fun IndexScreen(
                 item {
                     ImportSectionCard(
                         sources = importSources,
-                        onImportClick = { name ->
-                            when (name) {
-                                "Files" -> {
+                        onImportClick = { type ->
+                            when (type) {
+                                ImportSourceType.FILES -> {
                                     // Files: Accept PDF, DOCX, and Images
                                     allFilesPickerLauncher.launch("*/*")
                                 }
-                                "Albums" -> {
+                                ImportSourceType.ALBUMS -> {
                                     // Albums: Accept Images only
                                     imagePickerLauncher.launch("image/*")
-                                }
-                                else -> { /* future: open other apps*/
                                 }
                             }
                         },
@@ -370,25 +408,143 @@ fun IndexScreen(
 
         // Global Settings Sheet (Theme and Language only)
         if (showGlobalSettings) {
-            com.example.voicereaderapp.ui.settings.GlobalSettingsSheet(
+            GlobalSettingsSheet(
                 selectedLanguage = settingsState.settings.language,
                 selectedTheme = settingsState.settings.theme,
+                useMainVoiceForAll = settingsState.settings.useMainVoiceForAll,
+                mainVoiceId = settingsState.settings.mainVoiceId,
+                useMainSpeedForAll = settingsState.settings.useMainSpeedForAll,
+                mainSpeed = settingsState.settings.mainSpeed,
+                liveScanBarStyle = settingsState.settings.liveScanBarStyle,
                 onLanguageChange = { language ->
                     // Save to DataStore (for app settings)
                     settingsViewModel.updateLanguage(language)
                     settingsViewModel.saveSettings()
 
                     // Save to SharedPreferences (for locale configuration)
-                    val prefs = context.getSharedPreferences("locale_prefs", android.content.Context.MODE_PRIVATE)
+                    val prefs = context.getSharedPreferences("locale_prefs", Context.MODE_PRIVATE)
                     prefs.edit().putString("app_language", language).apply()
 
                     // Restart activity to apply locale changes
-                    com.example.voicereaderapp.MainActivity.restartActivity(context)
+                    MainActivity.restartActivity(context)
                 },
                 onThemeChange = { theme ->
                     settingsViewModel.updateTheme(theme)
                 },
+                onMainVoiceToggle = { enabled ->
+                    settingsViewModel.updateUseMainVoiceForAll(enabled)
+                },
+                onMainVoiceChange = { voiceId ->
+                    settingsViewModel.updateMainVoiceId(voiceId)
+                },
+                onMainSpeedToggle = { enabled ->
+                    settingsViewModel.updateUseMainSpeedForAll(enabled)
+                },
+                onMainSpeedChange = { speed ->
+                    settingsViewModel.updateMainSpeed(speed)
+                },
+                onLiveScanBarStyleChange = { style ->
+                    Log.d("IndexScreen", "🎨 Bar style changed to: $style")
+
+                    // Check if service is running before making changes
+                    val serviceRunning = isServiceRunning(context)
+                    Log.d("IndexScreen", "🔍 Service running: $serviceRunning")
+
+                    // Launch coroutine to save settings and restart service
+                    coroutineScope.launch {
+                        // Update and save settings
+                        settingsViewModel.updateLiveScanBarStyle(style)
+
+                        // Wait for the settings to be saved by monitoring the isSaving state
+                        delay(100) // Small initial delay
+
+                        // Wait until saving is complete (isSaving becomes false)
+                        var attempts = 0
+                        while (settingsViewModel.uiState.value.isSaving && attempts < 20) {
+                            delay(50)
+                            attempts++
+                        }
+
+                        Log.d("IndexScreen", "✅ Settings saved to ViewModel after ${attempts * 50}ms")
+
+                        // Additional delay to ensure DataStore persists to disk
+                        delay(500)
+                        Log.d("IndexScreen", "💾 DataStore flush delay complete")
+
+                        // Restart service if it was running
+                        if (serviceRunning) {
+                            Log.d("IndexScreen", "🔄 Restarting service with new style...")
+                            LiveOverlayService.stop(context)
+
+                            // Wait for service to stop completely
+                            delay(400)
+
+                            Log.d("IndexScreen", "▶️ Starting service with new style: $style")
+                            LiveOverlayService.start(context, "Live Reader updated")
+                        }
+                    }
+                },
                 onDismiss = { showGlobalSettings = false }
+            )
+        }
+
+        // Notes Screen
+        if (showNotesScreen) {
+            NotesDialogScreen(
+                onDismiss = { showNotesScreen = false }
+            )
+        }
+    }
+}
+
+/**
+ * Notes Dialog Screen - Shows notes list and detail in a dialog
+ */
+@Composable
+fun NotesDialogScreen(
+    onDismiss: () -> Unit,
+    noteViewModel: NoteViewModel = hiltViewModel()
+) {
+    val notes by noteViewModel.notes.collectAsState()
+    var selectedNoteId by remember { mutableStateOf<Long?>(null) }
+    var showNoteList by remember { mutableStateOf(true) }
+
+    // High elevation overlay container
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.8f))
+            .zIndex(1000f)
+    ) {
+        if (showNoteList) {
+            // Show notes list
+            NoteListScreen(
+                notes = notes,
+                onNoteClick = { noteId ->
+                    selectedNoteId = noteId
+                    showNoteList = false
+                },
+                onAddNewClick = {
+                    selectedNoteId = null
+                    showNoteList = false
+                },
+                onClose = onDismiss,
+                onDeleteClick = { noteId ->
+                    noteViewModel.deleteNote(noteId)
+                },
+                onRenameClick = { noteId, newTitle ->
+                    noteViewModel.renameNote(noteId, newTitle)
+                }
+            )
+        } else {
+            // Show note detail (create or edit)
+            NoteDetailScreen(
+                noteId = selectedNoteId,
+                noteViewModel = noteViewModel,
+                onBack = {
+                    showNoteList = true
+                    selectedNoteId = null
+                }
             )
         }
     }
@@ -400,6 +556,7 @@ fun IndexScreen(
 
 @Composable
 fun HomeTopBar(
+    onNotesClick: () -> Unit = {},
     onSettingsClick: () -> Unit = {}
 ) {
     TopAppBar(
@@ -425,6 +582,14 @@ fun HomeTopBar(
             }
         },
         actions = {
+            // Notes button
+            IconButton(onClick = onNotesClick) {
+                Icon(
+                    imageVector = Icons.Outlined.Description,
+                    contentDescription = "Notes"
+                )
+            }
+            // Settings button
             IconButton(onClick = onSettingsClick) {
                 Icon(
                     imageVector = Icons.Default.Settings,
@@ -442,7 +607,7 @@ fun HomeTopBar(
 @Composable
 fun GreetingCard() {
 
-    val greeting = remember { getGreetingMessage() }
+    val greeting = getGreetingMessage()
 
     Surface(
         modifier = Modifier
@@ -468,7 +633,7 @@ fun GreetingCard() {
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                text = "Ready to keep listening to your documents?",
+                text = stringResource(R.string.ready_to_listen),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -584,7 +749,7 @@ fun ContinueListeningCard(
             modifier = Modifier.padding(16.dp)
         ) {
             Text(
-                "Continue Listening",
+                stringResource(R.string.continue_listening),
                 style = MaterialTheme.typography.titleMedium.copy(
                     fontWeight = FontWeight.SemiBold
                 ),
@@ -594,7 +759,7 @@ fun ContinueListeningCard(
 
             if (documents.isEmpty()) {
                 Text(
-                    text = "No documents yet. Try importing a file!",
+                    text = stringResource(R.string.no_documents_yet),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -704,23 +869,23 @@ fun RecentDocCard(
                                 onDismissRequest = { showMenu = false }
                             ) {
                                 DropdownMenuItem(
-                                    text = { Text("Rename") },
+                                    text = { Text(stringResource(R.string.note_rename)) },
                                     onClick = {
                                         showMenu = false
                                         onRename?.invoke()
                                     },
                                     leadingIcon = {
-                                        Icon(Icons.Default.Edit, "Rename")
+                                        Icon(Icons.Default.Edit, stringResource(R.string.note_rename))
                                     }
                                 )
                                 DropdownMenuItem(
-                                    text = { Text("Delete") },
+                                    text = { Text(stringResource(R.string.note_delete)) },
                                     onClick = {
                                         showMenu = false
                                         onDelete?.invoke()
                                     },
                                     leadingIcon = {
-                                        Icon(Icons.Default.Delete, "Delete")
+                                        Icon(Icons.Default.Delete, stringResource(R.string.note_delete))
                                     }
                                 )
                             }
@@ -757,7 +922,7 @@ fun RecentDocCard(
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            textAlign = TextAlign.Center,
             modifier = Modifier
                 .fillMaxWidth()
                 .basicMarquee(
@@ -769,10 +934,10 @@ fun RecentDocCard(
         )
 
         Text(
-            text = "Progress ${(progress * 100).toInt()}%",
+            text = stringResource(R.string.progress, (progress * 100).toInt()),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth()
         )
     }
@@ -785,7 +950,7 @@ fun RecentDocCard(
 @Composable
 fun ImportSectionCard(
     sources: List<ImportSource>,
-    onImportClick: (String) -> Unit,
+    onImportClick: (ImportSourceType) -> Unit,
     isLiveScanEnabled: Boolean,
     onLiveScanToggle: (Boolean) -> Unit
 ) {
@@ -799,7 +964,7 @@ fun ImportSectionCard(
             modifier = Modifier.padding(16.dp)
         ) {
             Text(
-                "Import & Listen",
+                stringResource(R.string.import_and_listen),
                 style = MaterialTheme.typography.titleMedium.copy(
                     fontWeight = FontWeight.SemiBold
                 ),
@@ -816,7 +981,7 @@ fun ImportSectionCard(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier
                             .weight(1f)
-                            .clickable { onImportClick(source.name) }
+                            .clickable { onImportClick(source.type) }
                     ) {
                         Box(
                             modifier = Modifier
@@ -829,13 +994,13 @@ fun ImportSectionCard(
                         ) {
                             Icon(
                                 imageVector = source.icon,
-                                contentDescription = source.name,
+                                contentDescription = stringResource(source.nameResId),
                                 tint = source.tint
                             )
                         }
                         Spacer(Modifier.height(6.dp))
                         Text(
-                            text = source.name,
+                            text = stringResource(source.nameResId),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurface
                         )
@@ -886,14 +1051,14 @@ fun ImportSectionCard(
 
                     Column {
                         Text(
-                            text = "Live Scan",
+                            text = stringResource(R.string.live_scan),
                             style = MaterialTheme.typography.bodyMedium.copy(
                                 fontWeight = FontWeight.Medium
                             ),
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = "Scan text in other apps",
+                            text = stringResource(R.string.scan_text_in_other_apps),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -954,7 +1119,7 @@ fun RenameDocumentDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
-                text = "Rename Document",
+                text = stringResource(R.string.rename_document),
                 style = MaterialTheme.typography.titleLarge.copy(
                     fontWeight = FontWeight.Bold
                 )
@@ -963,7 +1128,7 @@ fun RenameDocumentDialog(
         text = {
             Column {
                 Text(
-                    text = "Enter a new name for this document:",
+                    text = stringResource(R.string.enter_new_name),
                     style = MaterialTheme.typography.bodyMedium,
                     color = Color(0xFF6B7280)
                 )
@@ -993,7 +1158,7 @@ fun RenameDocumentDialog(
                 enabled = newTitle.isNotBlank()
             ) {
                 Text(
-                    "Rename",
+                    stringResource(R.string.note_rename),
                     style = MaterialTheme.typography.labelLarge.copy(
                         fontWeight = FontWeight.SemiBold
                     )
@@ -1003,7 +1168,7 @@ fun RenameDocumentDialog(
         dismissButton = {
             TextButton(onClick = onDismiss) {
                 Text(
-                    "Cancel",
+                    stringResource(R.string.note_cancel),
                     style = MaterialTheme.typography.labelLarge
                 )
             }
@@ -1013,12 +1178,28 @@ fun RenameDocumentDialog(
     )
 }
 
+@Composable
 fun getGreetingMessage(): String {
-    val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+    val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
 
     return when (hour) {
-        in 5..11 -> "Good morning ☀️"
-        in 12..17 -> "Good afternoon 🌤"
-        else -> "Good evening 🌙"
+        in 5..11 -> stringResource(R.string.good_morning)
+        in 12..17 -> stringResource(R.string.good_afternoon)
+        in 18..21 -> stringResource(R.string.good_evening)
+        else -> stringResource(R.string.good_night)
     }
+}
+
+/**
+ * Helper function to check if LiveOverlayService is actually running
+ */
+fun isServiceRunning(context: Context): Boolean {
+    val manager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+    @Suppress("DEPRECATION")
+    for (service in manager.getRunningServices(Integer.MAX_VALUE)) {
+        if (LiveOverlayService::class.java.name == service.service.className) {
+            return true
+        }
+    }
+    return false
 }

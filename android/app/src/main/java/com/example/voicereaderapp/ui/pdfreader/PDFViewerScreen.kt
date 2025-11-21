@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -35,6 +36,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
@@ -62,14 +64,18 @@ import java.io.File
 fun PDFViewerScreen(
     fileUri: Uri? = null,
     documentId: String? = null,
+    source: String? = null,
     navController: NavController,
-    viewModel: PDFViewerViewModel = hiltViewModel()
+    viewModel: PDFViewerViewModel = hiltViewModel(),
+    settingsViewModel: SettingsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val settingsState by settingsViewModel.uiState.collectAsState()
     val context = LocalContext.current
     var pdfFile by remember { mutableStateOf<File?>(null) }
     var documentTitle by remember { mutableStateOf<String?>(null) }
     var showTakeNoteDialog by remember { mutableStateOf(false) }
+    var showNotesScreen by remember { mutableStateOf(false) }
 
     // Handle new import (fileUri provided)
     LaunchedEffect(fileUri) {
@@ -88,9 +94,31 @@ fun PDFViewerScreen(
     }
 
     // Handle saved document (documentId provided)
-    LaunchedEffect(documentId) {
+    // CRITICAL: Always load document when documentId is present
+    LaunchedEffect(key1 = documentId) {
+        android.util.Log.d("PDFViewerScreen", "📱 LaunchedEffect triggered")
+        android.util.Log.d("PDFViewerScreen", "   - fileUri: ${fileUri?.toString() ?: "null"}")
+        android.util.Log.d("PDFViewerScreen", "   - documentId: ${documentId ?: "null"}")
+        android.util.Log.d("PDFViewerScreen", "   - Current audioBase64: ${if (uiState.audioBase64 == null) "NULL" else "present (${uiState.audioBase64!!.length} chars)"}")
+
         if (documentId != null) {
+            android.util.Log.d("PDFViewerScreen", "   -> Calling loadSavedDocument($documentId)")
             viewModel.loadSavedDocument(documentId)
+        }
+    }
+
+    // Lifecycle management: ALWAYS stop audio when leaving screen
+    DisposableEffect(Unit) {
+        onDispose {
+            android.util.Log.d("PDFViewerScreen", "🔴 Screen being disposed")
+            // Always stop audio when leaving, not just when playing
+            if (uiState.isPlaying) {
+                android.util.Log.d("PDFViewerScreen", "   -> Pausing audio (was playing)")
+                viewModel.pauseAudio() // Save position first
+            }
+            android.util.Log.d("PDFViewerScreen", "   -> Stopping audio and releasing MediaPlayer")
+            viewModel.stopAudio()  // Always release MediaPlayer resources
+            android.util.Log.d("PDFViewerScreen", "   -> Screen disposed successfully")
         }
     }
 
@@ -121,14 +149,22 @@ fun PDFViewerScreen(
             selectedVoice = uiState.selectedSpeaker,
             selectedLanguage = uiState.selectedLanguage,
             onPlayPause = {
+                android.util.Log.d("PDFViewerScreen", "▶️ Play/Pause button pressed")
+                android.util.Log.d("PDFViewerScreen", "   - audioBase64: ${if (uiState.audioBase64 == null) "NULL" else "${uiState.audioBase64!!.length} chars"}")
+                android.util.Log.d("PDFViewerScreen", "   - isPlaying: ${uiState.isPlaying}")
+                android.util.Log.d("PDFViewerScreen", "   - selectedVoice: ${uiState.selectedSpeaker}")
+                android.util.Log.d("PDFViewerScreen", "   - selectedLanguage: ${uiState.selectedLanguage}")
+
                 if (uiState.audioBase64 == null) {
                     // No audio yet - generate it and auto-play (fixes double-press issue)
+                    android.util.Log.d("PDFViewerScreen", "   -> Generating speech (audio is null)")
                     viewModel.generateSpeech(autoPlay = true)
                 } else {
                     if (uiState.isPlaying) {
+                        android.util.Log.d("PDFViewerScreen", "   -> Pausing audio")
                         viewModel.pauseAudio()
                     } else {
-                        // Always use playAudio() which will start from current position
+                        android.util.Log.d("PDFViewerScreen", "   -> Playing audio from cache")
                         viewModel.playAudio()
                     }
                 }
@@ -147,7 +183,12 @@ fun PDFViewerScreen(
                 viewModel.setVoiceAndLanguage(voiceId, language)
             },
             onTakeNote = { showTakeNoteDialog = true },
-            onBack = { navController.popBackStack() }
+            onShowNotes = { showNotesScreen = true },
+            onBack = { navController.popBackStack() },
+            // Global settings enforcement
+            isSpeedEnforced = settingsState.settings.useMainSpeedForAll,
+            enforcedSpeed = settingsState.settings.mainSpeed,
+            isVoiceEnforced = settingsState.settings.useMainVoiceForAll
         )
 
         // Take Note Dialog
@@ -176,6 +217,214 @@ fun PDFViewerScreen(
             ) {
                 Text(uiState.error!!)
             }
+        }
+
+        // Notes Screen - Document specific
+        if (showNotesScreen) {
+            DocumentNotesScreen(
+                documentId = documentId ?: "",
+                documentTitle = uiState.documentTitle ?: "Document",
+                onDismiss = { showNotesScreen = false }
+            )
+        }
+    }
+}
+
+/**
+ * Document-specific Notes Screen
+ * Only shows notes for the current document
+ */
+@Composable
+fun DocumentNotesScreen(
+    documentId: String,
+    documentTitle: String,
+    onDismiss: () -> Unit,
+    noteViewModel: com.example.voicereaderapp.ui.livereader.overlay.NoteViewModel = hiltViewModel()
+) {
+    val documentNotes by remember(documentId) {
+        noteViewModel.getNotesByDocumentId(documentId)
+    }.collectAsState()
+    var selectedNoteId by remember { mutableStateOf<Long?>(null) }
+    var showNoteList by remember { mutableStateOf(true) }
+
+    // High elevation overlay container
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.8f))
+            .zIndex(1000f)
+    ) {
+        if (showNoteList) {
+            // Show notes list for this document
+            com.example.voicereaderapp.ui.livereader.overlay.note.NoteListScreen(
+                notes = documentNotes,
+                onNoteClick = { noteId ->
+                    selectedNoteId = noteId
+                    showNoteList = false
+                },
+                onAddNewClick = {
+                    selectedNoteId = null
+                    showNoteList = false
+                },
+                onClose = onDismiss,
+                onDeleteClick = { noteId ->
+                    noteViewModel.deleteNote(noteId)
+                },
+                onRenameClick = { noteId, newTitle ->
+                    noteViewModel.renameNote(noteId, newTitle)
+                }
+            )
+        } else {
+            // Show note detail (create or edit)
+            DocumentNoteDetailScreen(
+                noteId = selectedNoteId,
+                documentId = documentId,
+                documentTitle = documentTitle,
+                noteViewModel = noteViewModel,
+                onBack = {
+                    showNoteList = true
+                    selectedNoteId = null
+                }
+            )
+        }
+    }
+}
+
+/**
+ * Document Note Detail Screen
+ * For creating/editing notes linked to a document
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DocumentNoteDetailScreen(
+    noteId: Long?,
+    documentId: String,
+    documentTitle: String,
+    noteViewModel: com.example.voicereaderapp.ui.livereader.overlay.NoteViewModel,
+    onBack: () -> Unit
+) {
+    var title by remember { mutableStateOf("") }
+    var content by remember { mutableStateOf("") }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+
+    if (showDeleteDialog && noteId != null) {
+        com.example.voicereaderapp.ui.livereader.overlay.note.ConfirmDeleteDialog(
+            onConfirm = {
+                noteViewModel.deleteNote(noteId)
+                showDeleteDialog = false
+                onBack()
+            },
+            onCancel = { showDeleteDialog = false }
+        )
+    }
+
+    // Load note data if editing
+    LaunchedEffect(noteId) {
+        if (noteId != null) {
+            noteViewModel.getNoteById(noteId).collect { note ->
+                if (note != null) {
+                    title = note.title
+                    content = note.content
+                }
+            }
+        } else {
+            // New note - use document title as default
+            title = documentTitle
+        }
+    }
+
+    androidx.compose.material3.Scaffold(
+        topBar = {
+            androidx.compose.material3.TopAppBar(
+                title = { },
+                colors = androidx.compose.material3.TopAppBarDefaults.topAppBarColors(
+                    containerColor = androidx.compose.ui.graphics.Color.Transparent
+                ),
+                navigationIcon = {
+                    androidx.compose.material3.IconButton(onClick = onBack) {
+                        androidx.compose.material3.Icon(
+                            androidx.compose.material.icons.Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back"
+                        )
+                    }
+                },
+                actions = {
+                    if (noteId != null) {
+                        androidx.compose.material3.IconButton(onClick = {
+                            showDeleteDialog = true
+                        }) {
+                            androidx.compose.material3.Icon(
+                                androidx.compose.material.icons.Icons.Default.Delete,
+                                contentDescription = "Delete Note",
+                                tint = androidx.compose.material3.MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
+
+                    androidx.compose.material3.TextButton(onClick = {
+                        noteViewModel.saveNote(
+                            id = noteId,
+                            title = title,
+                            content = content,
+                            documentId = documentId,
+                            documentTitle = documentTitle
+                        )
+                        onBack()
+                    }) {
+                        androidx.compose.material3.Text(
+                            "Done",
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                        )
+                    }
+                }
+            )
+        }
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(16.dp)
+        ) {
+            androidx.compose.foundation.text.BasicTextField(
+                value = title,
+                onValueChange = { title = it },
+                textStyle = androidx.compose.ui.text.TextStyle(
+                    fontSize = 24.sp,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                ),
+                modifier = Modifier.fillMaxWidth(),
+                decorationBox = { innerTextField ->
+                    if (title.isEmpty()) {
+                        androidx.compose.material3.Text(
+                            "Title",
+                            style = androidx.compose.material3.MaterialTheme.typography.headlineMedium,
+                            color = androidx.compose.material3.MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                        )
+                    }
+                    innerTextField()
+                }
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            androidx.compose.foundation.text.BasicTextField(
+                value = content,
+                onValueChange = { content = it },
+                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 16.sp),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .weight(1f),
+                decorationBox = { innerTextField ->
+                    if (content.isEmpty()) {
+                        androidx.compose.material3.Text(
+                            "Start typing your note...",
+                            color = androidx.compose.material3.MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                        )
+                    }
+                    innerTextField()
+                }
+            )
         }
     }
 }

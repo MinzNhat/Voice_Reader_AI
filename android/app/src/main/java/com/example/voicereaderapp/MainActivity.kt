@@ -47,12 +47,8 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun attachBaseContext(newBase: Context) {
-        // Get saved language from SharedPreferences (used for locale only)
-        val prefs = newBase.getSharedPreferences("locale_prefs", Context.MODE_PRIVATE)
-        val savedLanguage = prefs.getString("app_language", "en-US") ?: "en-US"
-
-        // Apply locale to context
-        val context = LocaleHelper.setLocale(newBase, savedLanguage)
+        // Apply saved locale to context
+        val context = LocaleHelper.applyLocale(newBase)
         super.attachBaseContext(context)
     }
 

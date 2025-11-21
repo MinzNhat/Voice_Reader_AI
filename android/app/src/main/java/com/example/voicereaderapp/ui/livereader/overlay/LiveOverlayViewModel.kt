@@ -62,21 +62,60 @@ class LiveOverlayViewModel @Inject constructor(
     private val _selectedLanguage = MutableStateFlow("en-US")
     val selectedLanguage: StateFlow<String> = _selectedLanguage
 
+    // Main settings for global control
+    private val _useMainVoiceForAll = MutableStateFlow(false)
+    val useMainVoiceForAll: StateFlow<Boolean> = _useMainVoiceForAll
+
+    private val _mainVoiceId = MutableStateFlow("matt")
+    val mainVoiceId: StateFlow<String> = _mainVoiceId
+
+    private val _useMainSpeedForAll = MutableStateFlow(false)
+    val useMainSpeedForAll: StateFlow<Boolean> = _useMainSpeedForAll
+
+    private val _mainSpeed = MutableStateFlow(1.0f)
+    val mainSpeed: StateFlow<Float> = _mainSpeed
+
+    // Theme mode
+    private val _themeMode = MutableStateFlow(com.example.voicereaderapp.domain.model.ThemeMode.SYSTEM)
+    val themeMode: StateFlow<com.example.voicereaderapp.domain.model.ThemeMode> = _themeMode
+
     init {
         // Load global voice settings from DataStore
         scope.launch {
             getVoiceSettingsUseCase().collect { settings ->
-                _speed.value = settings.speed
-                _selectedVoiceId.value = settings.voiceId
-                _selectedLanguage.value = settings.language
+                // Update main settings flags
+                _useMainVoiceForAll.value = settings.useMainVoiceForAll
+                _mainVoiceId.value = settings.mainVoiceId
+                _useMainSpeedForAll.value = settings.useMainSpeedForAll
+                _mainSpeed.value = settings.mainSpeed
+                _themeMode.value = settings.theme
 
-                // Update deprecated VoiceConfig for UI compatibility
-                val voice = TTSVoice.fromId(settings.voiceId)
-                _voiceConfig.value = when (voice?.gender) {
-                    VoiceGender.MALE -> VoiceConfig.Male
-                    VoiceGender.FEMALE -> VoiceConfig.FeMale
-                    else -> VoiceConfig.Male
+                // Apply main voice/speed if enabled, otherwise use individual settings
+                if (settings.useMainVoiceForAll) {
+                    _selectedVoiceId.value = settings.mainVoiceId
+                    val voice = TTSVoice.fromId(settings.mainVoiceId)
+                    _voiceConfig.value = when (voice?.gender) {
+                        VoiceGender.MALE -> VoiceConfig.Male
+                        VoiceGender.FEMALE -> VoiceConfig.FeMale
+                        else -> VoiceConfig.Male
+                    }
+                } else {
+                    _selectedVoiceId.value = settings.voiceId
+                    val voice = TTSVoice.fromId(settings.voiceId)
+                    _voiceConfig.value = when (voice?.gender) {
+                        VoiceGender.MALE -> VoiceConfig.Male
+                        VoiceGender.FEMALE -> VoiceConfig.FeMale
+                        else -> VoiceConfig.Male
+                    }
                 }
+
+                if (settings.useMainSpeedForAll) {
+                    _speed.value = settings.mainSpeed
+                } else {
+                    _speed.value = settings.speed
+                }
+
+                _selectedLanguage.value = settings.language
             }
         }
     }
@@ -94,6 +133,10 @@ class LiveOverlayViewModel @Inject constructor(
     private val _isNoteOverlayVisible = MutableStateFlow(false)
     val isNoteOverlayVisible: StateFlow<Boolean> = _isNoteOverlayVisible
 
+    // Show settings overlay
+    private val _isSettingsOverlayVisible = MutableStateFlow(false)
+    val isSettingsOverlayVisible: StateFlow<Boolean> = _isSettingsOverlayVisible
+
     // ---------------------------- VOICE PAD (NHẤN GIỮ TỪ 1S TRỞ LÊN) ----------------------------------
 
     private val _isListening = MutableStateFlow(false)
@@ -106,6 +149,23 @@ class LiveOverlayViewModel @Inject constructor(
     fun onVoiceListeningEnd() {
         // kết thúc voice
         _isListening.value = false
+    }
+
+    // ----------------------------     PLAYBACK CONTROL        ---------------------------------
+
+    fun rewind() {
+        // Rewind by 5 seconds (5000 milliseconds)
+        val currentPos = ttsRepository.getCurrentPosition()
+        val newPos = (currentPos - 5000).coerceAtLeast(0)
+        ttsRepository.seekTo(newPos)
+    }
+
+    fun forward() {
+        // Forward by 5 seconds (5000 milliseconds)
+        val currentPos = ttsRepository.getCurrentPosition()
+        val duration = ttsRepository.getDuration()
+        val newPos = (currentPos + 5000).coerceAtMost(duration)
+        ttsRepository.seekTo(newPos)
     }
 
     // ----------------------------     HIGHTLIGHT ĐỌC TỪNG CHỮ        ---------------------------------
@@ -207,6 +267,14 @@ class LiveOverlayViewModel @Inject constructor(
 
     fun hideNoteOverlay() {
         _isNoteOverlayVisible.value = false
+    }
+
+    fun showSettingsOverlay() {
+        _isSettingsOverlayVisible.value = true
+    }
+
+    fun hideSettingsOverlay() {
+        _isSettingsOverlayVisible.value = false
     }
 
     fun expandOverlay() {

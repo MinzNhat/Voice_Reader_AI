@@ -50,7 +50,12 @@ fun VerticalReaderPanel(
     onClickSpeed: () -> Unit,
     onClickVoice: () -> Unit,
     onTakeNote: () -> Unit = {},  // <-- Added for Take Note feature
-    onClose: () -> Unit
+    onClose: () -> Unit,
+    // Global settings enforcement
+    isSpeedEnforced: Boolean = false,
+    enforcedSpeed: Float = 1.0f,
+    isVoiceEnforced: Boolean = false,
+    enforcedVoiceName: String = ""
 ) {
     var showSpeed by remember { mutableStateOf(false) }
     var showVoices by remember { mutableStateOf(false) }
@@ -84,26 +89,56 @@ fun VerticalReaderPanel(
                 tint = MaterialTheme.colorScheme.onSurface
             )
 
-            // Speed label (1.0x)
-            Text(
-                "${String.format("%.1f", speed)}x",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier
-                    .onGloballyPositioned { speedIconY = it.positionInRoot().y }
-                    .clickable { onClickSpeed() }
-            )
+            // Speed label (1.0x) - Shows enforced speed if enabled
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    "${String.format("%.1f", if (isSpeedEnforced) enforcedSpeed else speed)}x",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (isSpeedEnforced)
+                        MaterialTheme.colorScheme.primary
+                    else
+                        MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier
+                        .onGloballyPositioned { speedIconY = it.positionInRoot().y }
+                        .clickable(enabled = !isSpeedEnforced) { onClickSpeed() }
+                )
+                if (isSpeedEnforced) {
+                    Text(
+                        "Global",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontSize = 8.sp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
 
-            // Voice icon
-            Icon(
-                Icons.Default.AccountCircle,
-                contentDescription = "Voices",
-                modifier = Modifier
-                    .size(26.dp)
-                    .onGloballyPositioned { voiceIconY = it.positionInRoot().y }
-                    .clickable { onClickVoice()},
-                tint = MaterialTheme.colorScheme.onSurface
-            )
+            // Voice icon - Shows if enforced
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Icon(
+                    Icons.Default.AccountCircle,
+                    contentDescription = "Voices",
+                    modifier = Modifier
+                        .size(26.dp)
+                        .onGloballyPositioned { voiceIconY = it.positionInRoot().y }
+                        .clickable(enabled = !isVoiceEnforced) { onClickVoice()},
+                    tint = if (isVoiceEnforced)
+                        MaterialTheme.colorScheme.primary
+                    else
+                        MaterialTheme.colorScheme.onSurface
+                )
+                if (isVoiceEnforced) {
+                    Text(
+                        "Global",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontSize = 8.sp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
 
             // Take Note icon
             Icon(
@@ -154,11 +189,30 @@ fun VerticalReaderPanel(
                         color = MaterialTheme.colorScheme.onSurface
                     )
 
+                    // Show warning if speed is enforced
+                    if (isSpeedEnforced) {
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text(
+                                "Speed is set globally (${String.format("%.1f", enforcedSpeed)}x). Change in Settings.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.padding(8.dp)
+                            )
+                        }
+                    }
+
                     Slider(
-                        value = speed,
+                        value = if (isSpeedEnforced) enforcedSpeed else speed,
                         valueRange = 0.5f..2f,
-                        onValueChange = onSpeedChange,
-                        modifier = Modifier.height(32.dp)
+                        onValueChange = { if (!isSpeedEnforced) onSpeedChange(it) },
+                        modifier = Modifier.height(32.dp),
+                        enabled = !isSpeedEnforced
                     )
                 }
             }
@@ -184,6 +238,24 @@ fun VerticalReaderPanel(
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Spacer(Modifier.height(8.dp))
+
+                    // Show warning if voice is enforced
+                    if (isVoiceEnforced) {
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 8.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text(
+                                "Voice is set globally ($enforcedVoiceName). Change in Settings.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.padding(8.dp)
+                            )
+                        }
+                    }
 
                     listOf("Emma", "Michael", "Anna").forEach { voice ->
                         Row(

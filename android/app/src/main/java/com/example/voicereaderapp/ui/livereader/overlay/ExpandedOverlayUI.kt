@@ -22,6 +22,7 @@ import com.example.voicereaderapp.data.local.database.VoiceReaderDatabase
 import com.example.voicereaderapp.data.local.entity.NoteRepository
 import com.example.voicereaderapp.ui.livereader.overlay.note.NoteTakingOverlay
 import com.example.voicereaderapp.ui.livereader.overlay.note.NoteViewModelFactory
+import androidx.compose.material3.MaterialTheme
 
 @Composable
 fun ExpandedOverlayUI(viewModel: LiveOverlayViewModel) {
@@ -58,7 +59,7 @@ fun ExpandedOverlayUI(viewModel: LiveOverlayViewModel) {
                     indication = null,
                     onClick = {}
                 )
-                .background(Color.White, shape = RoundedCornerShape(panelCorner))
+                .background(MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(panelCorner))
                 .padding(16.dp)
         ) {
             // Nội dung của panel cài đặt
@@ -75,6 +76,38 @@ fun ExpandedOverlayUI(viewModel: LiveOverlayViewModel) {
             NoteTakingOverlay(
                 noteViewModel = noteViewModel,
                 onClose = { viewModel.hideNoteOverlay() }
+            )
+        }
+
+        val isSettingsOverlayVisible by viewModel.isSettingsOverlayVisible.collectAsState()
+        if (isSettingsOverlayVisible) {
+            val context = LocalContext.current
+            // Get current settings from ViewModel
+            val currentSpeed by viewModel.speed.collectAsState()
+            val currentVoiceId by viewModel.selectedVoiceId.collectAsState()
+            val currentLanguage by viewModel.selectedLanguage.collectAsState()
+            val useMainVoiceForAll by viewModel.useMainVoiceForAll.collectAsState()
+            val useMainSpeedForAll by viewModel.useMainSpeedForAll.collectAsState()
+
+            val currentSettings = remember(currentSpeed, currentVoiceId, currentLanguage) {
+                com.example.voicereaderapp.domain.model.VoiceSettings(
+                    speed = currentSpeed,
+                    voiceId = currentVoiceId,
+                    language = currentLanguage
+                )
+            }
+
+            SettingsOverlay(
+                currentSettings = currentSettings,
+                onSpeedChange = { newSpeed ->
+                    viewModel.setSpeed(newSpeed)
+                },
+                onVoiceChange = { voiceId, language ->
+                    viewModel.setVoiceById(voiceId, language)
+                },
+                onClose = { viewModel.hideSettingsOverlay() },
+                useMainVoiceForAll = useMainVoiceForAll,
+                useMainSpeedForAll = useMainSpeedForAll
             )
         }
     }
