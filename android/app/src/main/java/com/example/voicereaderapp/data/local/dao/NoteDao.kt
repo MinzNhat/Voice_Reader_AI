@@ -10,7 +10,7 @@ interface NoteDao {
     @Query("SELECT * FROM notes_table ORDER BY createdAt DESC")
     fun getAllNotes(): Flow<List<NoteEntity>>
 
-    @Query("SELECT * FROM notes_table WHERE documentId = :documentId ORDER BY createdAt DESC")
+    @Query("SELECT * FROM notes_table WHERE documentId = :documentId AND documentId IS NOT NULL AND documentId != '' ORDER BY createdAt DESC")
     fun getNotesByDocumentId(documentId: String): Flow<List<NoteEntity>>
 
     @Query("SELECT * FROM notes_table WHERE id = :noteId")
@@ -24,4 +24,7 @@ interface NoteDao {
 
     @Query("DELETE FROM notes_table WHERE id = :noteId")
     suspend fun deleteNoteById(noteId: Long)
+
+    @Query("DELETE FROM notes_table WHERE documentId = :documentId")
+    suspend fun deleteNotesByDocumentId(documentId: String)
 }

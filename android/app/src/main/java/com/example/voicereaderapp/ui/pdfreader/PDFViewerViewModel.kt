@@ -34,6 +34,7 @@ data class PDFViewerUiState(
     val error: String? = null,
 
     // Document Info
+    val documentId: String? = null,  // Expose documentId for note-taking
     val documentTitle: String? = null,
 
     // OCR State
@@ -204,8 +205,8 @@ class PDFViewerViewModel @Inject constructor(
                 val languageToUse = if (settings.useMainVoiceForAll) {
                     // Map main voice to language
                     when (settings.mainVoiceId) {
-                        "nminseo", "nshasha", "danna", "vmaum" -> "ko-KR"
-                        "nanna", "nclara", "matt" -> "en-US"
+                        "nminseo", "nshasha", "nmovie", "nmammon" -> "ko-KR"
+                        "danna", "clara", "matt" -> "en-US"
                         else -> settings.language
                     }
                 } else {
@@ -250,6 +251,10 @@ class PDFViewerViewModel @Inject constructor(
                 }
 
                 currentDocumentId = documentId
+
+                // Update UI state with documentId for note-taking
+                _uiState.value = _uiState.value.copy(documentId = documentId)
+
                 android.util.Log.d("PDFViewerViewModel", "✅ Document loaded: ${document.title}")
                 android.util.Log.d("PDFViewerViewModel", "   - Content length: ${document.content?.length ?: 0}")
                 android.util.Log.d("PDFViewerViewModel", "   - Last position: ${document.lastReadPosition}")
@@ -268,8 +273,8 @@ class PDFViewerViewModel @Inject constructor(
                 val language = if (globalSettings.useMainVoiceForAll) {
                     // Map main voice to language
                     when (globalSettings.mainVoiceId) {
-                        "nminseo", "nshasha", "danna", "vmaum" -> "ko-KR"
-                        "nanna", "nclara", "matt" -> "en-US"
+                        "nminseo", "nshasha", "nmovie", "nmammon" -> "ko-KR"
+                        "danna", "clara", "matt" -> "en-US"
                         else -> document.language ?: _uiState.value.selectedLanguage
                     }
                 } else {
@@ -307,6 +312,7 @@ class PDFViewerViewModel @Inject constructor(
                         // Load cached audio - no TTS API call needed!
                         _uiState.value = _uiState.value.copy(
                             isLoading = false,
+                            documentId = documentId,
                             documentTitle = document.title,
                             ocrText = document.content,
                             selectedSpeaker = voiceId,
@@ -331,6 +337,7 @@ class PDFViewerViewModel @Inject constructor(
 
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
+                    documentId = documentId,
                     documentTitle = document.title,
                     ocrText = document.content,
                     selectedSpeaker = voiceId,
@@ -439,6 +446,13 @@ class PDFViewerViewModel @Inject constructor(
                 )
 
                 saveDocumentUseCase(document)
+
+                // Update UI state with documentId so notes can be saved immediately
+                _uiState.value = _uiState.value.copy(
+                    documentId = currentDocumentId,
+                    documentTitle = cleanTitle
+                )
+
                 android.util.Log.d("PDFViewerViewModel", "✅ Document saved: ${document.title} (${document.id}) - Type: ${documentType}")
             } catch (e: Exception) {
                 android.util.Log.e("PDFViewerViewModel", "❌ Failed to save document", e)

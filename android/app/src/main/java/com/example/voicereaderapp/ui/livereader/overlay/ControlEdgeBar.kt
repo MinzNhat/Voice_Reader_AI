@@ -10,9 +10,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
@@ -25,6 +27,8 @@ import kotlin.math.abs
 fun BoxScope.ControlEdgeBar(
     viewModel: LiveOverlayViewModel
 ) {
+    val isReading by viewModel.isReading.collectAsState()
+
     Box(
         modifier = Modifier
             .align(Alignment.CenterEnd)
@@ -65,14 +69,14 @@ fun BoxScope.ControlEdgeBar(
                 }
             }
     ) {
-        // Edge bar - adapts to theme
+        // Edge bar - changes color when reading (lighter grey)
         Box(
             modifier = Modifier
                 .size(width = 7.dp, height = 80.dp)
                 .align(Alignment.CenterEnd)
                 .offset(x = (-8).dp)
                 .background(
-                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
                     shape = RoundedCornerShape(3.dp)
                 )
         )
@@ -88,6 +92,8 @@ fun ControlEdgeBarSimple(
     viewModel: LiveOverlayViewModel,
     onPositionChange: (Float, Float) -> Unit
 ) {
+    val isReading by viewModel.isReading.collectAsState()
+
     Box(
         modifier = Modifier
             .size(width = 40.dp, height = 90.dp) // Vùng chạm
@@ -151,14 +157,14 @@ fun ControlEdgeBarSimple(
                 }
             }
     ) {
-        // Edge bar - adapts to theme
+        // Edge bar - changes color when reading (lighter grey)
         Box(
             modifier = Modifier
                 .size(width = 7.dp, height = 80.dp)
                 .align(Alignment.CenterEnd)
                 .offset(x = (-8).dp)
                 .background(
-                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
                     shape = RoundedCornerShape(3.dp)
                 )
         )

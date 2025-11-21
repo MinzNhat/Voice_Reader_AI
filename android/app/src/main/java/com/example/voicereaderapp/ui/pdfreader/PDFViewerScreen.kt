@@ -67,7 +67,8 @@ fun PDFViewerScreen(
     source: String? = null,
     navController: NavController,
     viewModel: PDFViewerViewModel = hiltViewModel(),
-    settingsViewModel: SettingsViewModel = hiltViewModel()
+    settingsViewModel: SettingsViewModel = hiltViewModel(),
+    noteViewModel: com.example.voicereaderapp.ui.livereader.overlay.NoteViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val settingsState by settingsViewModel.uiState.collectAsState()
@@ -197,8 +198,22 @@ fun PDFViewerScreen(
                 documentTitle = uiState.documentTitle ?: documentTitle?.removeSuffix(".pdf")?.removeSuffix(".PDF") ?: "PDF Document",
                 onDismiss = { showTakeNoteDialog = false },
                 onSaveNote = { note ->
-                    // TODO: Save note to database
-                    android.util.Log.d("PDFViewerScreen", "Note saved: $note")
+                    // Save note to database using NoteViewModel
+                    val noteDocId = uiState.documentId ?: documentId ?: ""
+                    val noteDocTitle = uiState.documentTitle ?: documentTitle?.removeSuffix(".pdf")?.removeSuffix(".PDF") ?: "PDF Document"
+
+                    if (noteDocId.isNotEmpty()) {
+                        noteViewModel.saveNote(
+                            id = null,
+                            title = noteDocTitle,
+                            content = note,
+                            documentId = noteDocId,
+                            documentTitle = noteDocTitle
+                        )
+                        android.util.Log.d("PDFViewerScreen", "Note saved for document: $noteDocId")
+                    } else {
+                        android.util.Log.e("PDFViewerScreen", "Cannot save note - documentId is not available yet")
+                    }
                 }
             )
         }
@@ -222,7 +237,7 @@ fun PDFViewerScreen(
         // Notes Screen - Document specific
         if (showNotesScreen) {
             DocumentNotesScreen(
-                documentId = documentId ?: "",
+                documentId = uiState.documentId ?: documentId ?: "",
                 documentTitle = uiState.documentTitle ?: "Document",
                 onDismiss = { showNotesScreen = false }
             )

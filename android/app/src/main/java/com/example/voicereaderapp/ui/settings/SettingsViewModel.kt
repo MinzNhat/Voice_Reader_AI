@@ -137,13 +137,24 @@ class SettingsViewModel @Inject constructor(
 
     /**
      * Updates the main voice for all documents setting.
+     * When enabling, sets default voice to "matt" if not already set.
      *
      * @param useMainVoice Whether to use main voice for all documents
      */
     fun updateUseMainVoiceForAll(useMainVoice: Boolean) {
-        _uiState.value = _uiState.value.copy(
-            settings = _uiState.value.settings.copy(useMainVoiceForAll = useMainVoice)
-        )
+        val currentSettings = _uiState.value.settings
+
+        // When turning ON the toggle, ensure mainVoiceId is set to "matt" as default
+        val updatedSettings = if (useMainVoice && currentSettings.mainVoiceId != "matt") {
+            currentSettings.copy(
+                useMainVoiceForAll = useMainVoice,
+                mainVoiceId = "matt"  // Set default to Matt when first enabled
+            )
+        } else {
+            currentSettings.copy(useMainVoiceForAll = useMainVoice)
+        }
+
+        _uiState.value = _uiState.value.copy(settings = updatedSettings)
         saveSettings()
     }
 

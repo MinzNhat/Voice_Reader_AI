@@ -313,7 +313,7 @@ fun GlobalSettingsSheet(
                         .padding(bottom = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    listOf("nminseo" to "Minseo", "nshasha" to "Shasha", "danna" to "Movie Choi", "vmaum" to "Mammom").forEach { (id, name) ->
+                    listOf("nminseo" to "Minseo", "nshasha" to "Shasha", "nyounghwa" to "Movie Choi", "nmammon" to "Mammom").forEach { (id, name) ->
                         FilterChip(
                             selected = mainVoiceId == id,
                             onClick = { onMainVoiceChange?.invoke(id) },
@@ -337,7 +337,7 @@ fun GlobalSettingsSheet(
                         .padding(bottom = 32.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    listOf("nanna" to "Anna", "nclara" to "Clara", "matt" to "Matt").forEach { (id, name) ->
+                    listOf("danna" to "Anna", "clara" to "Clara", "matt" to "Matt").forEach { (id, name) ->
                         FilterChip(
                             selected = mainVoiceId == id,
                             onClick = { onMainVoiceChange?.invoke(id) },

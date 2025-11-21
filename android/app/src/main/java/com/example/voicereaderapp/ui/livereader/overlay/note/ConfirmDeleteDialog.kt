@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import com.example.voicereaderapp.R
 
 @Composable
@@ -18,10 +19,7 @@ fun ConfirmDeleteDialog(
     onConfirm: () -> Unit,
     onCancel: () -> Unit
 ) {
-    // Cấu trúc Box -> Surface bên ngoài được giữ nguyên
-    Box(
-        contentAlignment = Alignment.Center
-    ) {
+    Dialog(onDismissRequest = onCancel) {
         Surface(
             shape = RoundedCornerShape(16.dp), // Tăng độ bo góc cho mềm mại hơn
             tonalElevation = 6.dp,

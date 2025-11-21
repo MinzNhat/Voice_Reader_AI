@@ -3,6 +3,7 @@ package com.example.voicereaderapp.ui.livereader.overlay
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -11,15 +12,17 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material3.Icon
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.platform.LocalConfiguration
@@ -30,6 +33,48 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
+
+/**
+ * Custom circular gradient icon with dot inside
+ * Recreates the design from the provided image using Canvas
+ */
+@Composable
+fun GradientCircleIcon(modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        val canvasSize = size.minDimension
+        val center = Offset(size.width / 2f, size.height / 2f)
+
+        // Gradient colors: cyan blue to purple
+        val gradientBrush = Brush.sweepGradient(
+            colors = listOf(
+                Color(0xFFD6DAFF), // Light blue
+                Color(0xFFEFF3FC), // Blue-purple
+                Color(0xFFFFFCFC), // Purple
+                Color(0xFFEFF3FC), // Deep purple
+                Color(0xFFD6DAFF)  // Back to light blue for smooth loop
+            ),
+            center = center
+        )
+
+        // Draw the gradient ring
+        drawCircle(
+            brush = gradientBrush,
+            radius = canvasSize * 0.42f,
+            center = center,
+            style = Stroke(width = canvasSize * 0.12f, cap = StrokeCap.Round)
+        )
+
+        // Draw the small dot inside
+        drawCircle(
+            color = Color(0xFFEAE0F6), // Purple dot
+            radius = canvasSize * 0.08f,
+            center = Offset(
+                center.x + canvasSize * 0.25f,
+                center.y
+            )
+        )
+    }
+}
 
 /**
  * Floating circle button for live scan control
@@ -82,9 +127,8 @@ fun CircleControlButton(
                 )
             }
             .size(60.dp)
-            .shadow(8.dp, CircleShape)
             .background(
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.9f),
+                color = Color.White,
                 shape = CircleShape
             )
             .pointerInput(Unit) {
@@ -167,12 +211,7 @@ fun CircleControlButton(
             },
         contentAlignment = Alignment.Center
     ) {
-        Icon(
-            imageVector = Icons.Default.Mic,
-            contentDescription = "Voice Control",
-            tint = Color.White,
-            modifier = Modifier.size(32.dp)
-        )
+        GradientCircleIcon(modifier = Modifier.size(48.dp))
     }
 }
 
@@ -189,9 +228,9 @@ fun CircleControlButtonSimple(
     Box(
         modifier = Modifier
             .size(60.dp)
-            .shadow(8.dp, CircleShape)
+            .shadow(0.1.dp, shape = CircleShape)
             .background(
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.9f),
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
                 shape = CircleShape
             )
             .pointerInput(Unit) {
@@ -251,11 +290,6 @@ fun CircleControlButtonSimple(
             },
         contentAlignment = Alignment.Center
     ) {
-        Icon(
-            imageVector = Icons.Default.Mic,
-            contentDescription = "Voice Control",
-            tint = Color.White,
-            modifier = Modifier.size(32.dp)
-        )
+        GradientCircleIcon(modifier = Modifier.size(48.dp))
     }
 }
