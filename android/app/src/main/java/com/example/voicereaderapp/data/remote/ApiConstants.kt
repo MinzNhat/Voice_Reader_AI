@@ -13,12 +13,13 @@ object ApiConstants {
     object Endpoints {
         const val HEALTH = "health"
         const val OCR_EXTRACT = "api/ocr/extract"
+        const val OCR_BATCH = "api/ocr/batch"
         const val TTS_SYNTHESIZE = "api/tts/synthesize"
-//        const val TTS_STREAM = "api/tts/stream"
-//        const val TTS_VOICES = "api/tts/voices"
-//        const val PDF_EXTRACT = "api/pdf/extract"
-//        const val PDF_EXTRACT_PAGE = "api/pdf/extract-page"
-//        const val PDF_METADATA = "api/pdf/metadata"
+        const val TTS_STREAM = "api/tts/stream"
+        const val TTS_VOICES = "api/tts/voices"
+        const val PDF_EXTRACT = "api/pdf/extract"
+        const val PDF_EXTRACT_PAGE = "api/pdf/extract-page"
+        const val PDF_METADATA = "api/pdf/metadata"
 
         // 🔥 RAG (MỚI - Cần thêm 2 dòng này)
         const val RAG_INGEST = "api/rag/ingest"

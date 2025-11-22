@@ -26,30 +26,30 @@ interface ApiService {
         @Body request: TtsRequest
     ): Response<ApiResponse<TtsResponse>>
 
-//    @GET(ApiConstants.Endpoints.TTS_VOICES)
-//    suspend fun getAvailableVoices(
-//        @Query("language") language: String
-//    ): Response<ApiResponse<List<VoiceInfo>>>
+    @GET(ApiConstants.Endpoints.TTS_VOICES)
+    suspend fun getAvailableVoices(
+        @Query("language") language: String
+    ): Response<ApiResponse<List<VoiceInfo>>>
 
     // PDF Endpoints
-//    @Multipart
-//    @POST(ApiConstants.Endpoints.PDF_EXTRACT)
-//    suspend fun extractTextFromPdf(
-//        @Part pdf: MultipartBody.Part
-//    ): Response<ApiResponse<OCRResponse>>  // ← CHANGED: OCRResponse (model with words)
+    @Multipart
+    @POST(ApiConstants.Endpoints.PDF_EXTRACT)
+    suspend fun extractTextFromPdf(
+        @Part pdf: MultipartBody.Part
+    ): Response<ApiResponse<OCRResponse>>  // ← CHANGED: OCRResponse (model with words)
 
-//    @Multipart
-//    @POST(ApiConstants.Endpoints.PDF_EXTRACT_PAGE)
-//    suspend fun extractTextFromPdfPage(
-//        @Part pdf: MultipartBody.Part,
-//        @Part("page") page: RequestBody
-//    ): Response<ApiResponse<PdfResponse>>
+    @Multipart
+    @POST(ApiConstants.Endpoints.PDF_EXTRACT_PAGE)
+    suspend fun extractTextFromPdfPage(
+        @Part pdf: MultipartBody.Part,
+        @Part("page") page: RequestBody
+    ): Response<ApiResponse<PdfResponse>>
 
-//    @Multipart
-//    @POST(ApiConstants.Endpoints.PDF_METADATA)
-//    suspend fun getPdfMetadata(
-//        @Part pdf: MultipartBody.Part
-//    ): Response<ApiResponse<PdfMetadataResponse>>
+    @Multipart
+    @POST(ApiConstants.Endpoints.PDF_METADATA)
+    suspend fun getPdfMetadata(
+        @Part pdf: MultipartBody.Part
+    ): Response<ApiResponse<PdfMetadataResponse>>
 
     @POST(ApiConstants.Endpoints.RAG_INGEST)
     suspend fun ingestText(@Body request: RagRequest): Response<RagResponse>
