@@ -4,12 +4,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.voicereaderapp.domain.model.ReadingDocument
 import com.example.voicereaderapp.domain.usecase.GetAllDocumentsUseCase
+import com.example.voicereaderapp.domain.model.ChatMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
 
 /**
  * UI state for PDF Reader screen.
@@ -37,7 +39,7 @@ class PdfReaderViewModel @Inject constructor(
     private val getAllDocumentsUseCase: GetAllDocumentsUseCase
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(PdfReaderUiState(isLoading = true))
-    
+
     /**
      * Current UI state of the PDF reader screen.
      */

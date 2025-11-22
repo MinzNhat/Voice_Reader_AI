@@ -8,6 +8,7 @@ import com.example.voicereaderapp.domain.repository.OCRRepository
 import com.example.voicereaderapp.domain.repository.TTSRepository
 import com.example.voicereaderapp.domain.usecase.SaveDocumentUseCase
 import com.example.voicereaderapp.utils.Result
+import com.example.voicereaderapp.domain.usecase.IngestRagUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -49,10 +50,11 @@ data class ScannerUiState(
 class ScannerViewModel @Inject constructor(
     private val saveDocumentUseCase: SaveDocumentUseCase,
     private val ocrRepository: OCRRepository,
-    private val ttsRepository: TTSRepository
+    private val ttsRepository: TTSRepository,
+    private val ingestRagUseCase: IngestRagUseCase
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(ScannerUiState())
-    
+
     /**
      * Current UI state of the scanner screen.
      */
@@ -122,6 +124,17 @@ class ScannerViewModel @Inject constructor(
 
                         // Step 2: Save document with extracted text
                         val documentId = saveDocument(imageFile.name, extractedText)
+
+                        // Step 2.5: Ingest to Vector DB
+                        if (extractedText.isNotBlank()) {
+                            android.util.Log.d("RAG", "Bắt đầu nạp kiến thức cho AI...")
+                            // Chạy ingest song song, không cần chờ nó xong mới làm việc khác
+                            launch {
+                                ingestRagUseCase(extractedText)
+                                    .onSuccess { android.util.Log.d("RAG", "AI học xong!") }
+                                    .onFailure { android.util.Log.e("RAG", "Lỗi nạp: ${it.message}") }
+                            }
+                        }
 
                         // Step 3: Generate TTS audio automatically
                         if (extractedText.isNotBlank()) {

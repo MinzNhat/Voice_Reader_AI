@@ -1,4 +1,2 @@
 package com.example.voicereaderapp.domain.model
-
-class ChatMessage {
-}
+data class ChatMessage(val content: String, val isUser: Boolean)

@@ -5,8 +5,10 @@ import com.example.voicereaderapp.data.repository.VoiceSettingsRepositoryImpl
 import com.example.voicereaderapp.domain.repository.DocumentRepository
 import com.example.voicereaderapp.domain.repository.VoiceSettingsRepository
 import com.example.voicereaderapp.data.repository.OCRRepositoryImpl
+import com.example.voicereaderapp.data.repository.RagRepositoryImpl
 import com.example.voicereaderapp.data.repository.TTSRepositoryImpl
 import com.example.voicereaderapp.domain.repository.OCRRepository
+import com.example.voicereaderapp.domain.repository.RagRepository
 import com.example.voicereaderapp.domain.repository.TTSRepository
 import dagger.Binds
 import dagger.Module
@@ -58,4 +60,10 @@ abstract class RepositoryModule {
     abstract fun bindTTSRepository(
         repositoryImpl: TTSRepositoryImpl
     ): TTSRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindRagRepository(
+        impl: RagRepositoryImpl
+    ): RagRepository
 }

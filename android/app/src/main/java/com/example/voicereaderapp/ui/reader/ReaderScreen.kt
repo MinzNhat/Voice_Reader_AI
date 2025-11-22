@@ -16,22 +16,31 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.example.voicereaderapp.ui.common.ReaderMode
 import com.example.voicereaderapp.ui.common.UnifiedReaderScreen
+import com.example.voicereaderapp.ui.component.ChatUi // Nhớ import ChatUi
 import com.example.voicereaderapp.ui.settings.SettingsViewModel
 
 /**
  * ReaderScreen - Text reading mode
  * Uses UnifiedReaderScreen for UI, ReaderViewModel for logic
  */
+@OptIn(ExperimentalMaterial3Api::class) // Cần cho ModalBottomSheet
 @Composable
 fun ReaderScreen(
     navController: NavController,
     documentId: String,
     viewModel: ReaderViewModel = hiltViewModel()
 ) {
+    // 1. Lấy toàn bộ UI State (bao gồm cả Chat state)
     val uiState by viewModel.uiState.collectAsState()
+
     val settingsViewModel: SettingsViewModel = hiltViewModel()
     val settingsState by settingsViewModel.uiState.collectAsState()
+
+    // State cục bộ cho các Dialog/Sheet
     var showTakeNoteDialog by remember { mutableStateOf(false) }
+    // --- STATE CHO CHATBOT ---
+    var showChatSheet by remember { mutableStateOf(false) }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     LaunchedEffect(documentId) {
         viewModel.loadDocument(documentId)
@@ -54,36 +63,63 @@ fun ReaderScreen(
         com.example.voicereaderapp.domain.model.DocumentType.LIVE_SCREEN -> ReaderMode.TEXT
     }
 
-    UnifiedReaderScreen(
-        title = uiState.documentTitle.takeIf { it.isNotBlank() } ?: "Document",
-        mode = readerMode,
-        content = {
-            // Text content with word highlighting
-            TextReaderContent(
-                content = uiState.documentContent,
-                currentWordIndex = uiState.currentWordIndex
-            )
-        },
-        progress = progress,
-        isPlaying = uiState.isPlaying,
-        isLoading = uiState.isLoading,
-        playbackSpeed = settingsState.settings.speed,
-        selectedVoice = settingsState.settings.voiceId,
-        selectedLanguage = settingsState.settings.language,
-        onPlayPause = { viewModel.togglePlayPause() },
-        onRewind = { viewModel.rewind() },
-        onForward = { viewModel.forward() },
-        onSeek = { fraction ->
-            val targetIndex = (fraction * words.size).toInt().coerceIn(0, words.size - 1)
-            viewModel.jumpTo(targetIndex)
-        },
-        onSpeedChange = { settingsViewModel.updateSpeed(it) },
-        onVoiceChange = { voiceId, language ->
-            settingsViewModel.updateVoiceAndLanguage(voiceId, language)
-        },
-        onTakeNote = { showTakeNoteDialog = true },
-        onBack = { navController.popBackStack() }
-    )
+    Box(modifier = Modifier.fillMaxSize()) {
+
+        UnifiedReaderScreen(
+            title = uiState.documentTitle.takeIf { it.isNotBlank() } ?: "Document",
+            mode = readerMode,
+            content = {
+                // Text content with word highlighting
+                TextReaderContent(
+                    content = uiState.documentContent,
+                    currentWordIndex = uiState.currentWordIndex
+                )
+            },
+            progress = progress,
+            isPlaying = uiState.isPlaying,
+            isLoading = uiState.isLoading,
+            playbackSpeed = settingsState.settings.speed,
+            selectedVoice = settingsState.settings.voiceId,
+            selectedLanguage = settingsState.settings.language,
+            // Các action cũ
+            onPlayPause = { viewModel.togglePlayPause() },
+            onRewind = { viewModel.rewind() },
+            onForward = { viewModel.forward() },
+            onSeek = { fraction ->
+                val targetIndex = (fraction * words.size).toInt().coerceIn(0, words.size - 1)
+                viewModel.jumpTo(targetIndex)
+            },
+            onSpeedChange = { settingsViewModel.updateSpeed(it) },
+            onVoiceChange = { voiceId, language ->
+                settingsViewModel.updateVoiceAndLanguage(voiceId, language)
+            },
+            onTakeNote = { showTakeNoteDialog = true },
+            onBack = { navController.popBackStack() },
+            onChat = {
+                android.util.Log.d("DEBUG_CHAT", "Đã bấm nút Chat!") // <--- Check Logcat
+                showChatSheet = true
+            }
+        )
+
+        // --- CHAT BOTTOM SHEET (Overlay) ---
+        if (showChatSheet) {
+            ModalBottomSheet(
+                onDismissRequest = { showChatSheet = false },
+                sheetState = sheetState,
+                containerColor = MaterialTheme.colorScheme.surface,
+                tonalElevation = 8.dp
+            ) {
+                // Gọi Component ChatUi
+                ChatUi(
+                    messages = uiState.chatMessages, // Lấy từ uiState chung
+                    isLoading = uiState.isChatLoading,
+                    onSend = { question ->
+                        viewModel.askAi(question)
+                    }
+                )
+            }
+        }
+    }
 
     // Take Note Dialog
     if (showTakeNoteDialog) {
@@ -154,4 +190,3 @@ private fun TextReaderContent(
         }
     }
 }
-

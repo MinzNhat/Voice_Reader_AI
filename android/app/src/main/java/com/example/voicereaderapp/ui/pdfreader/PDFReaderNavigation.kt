@@ -4,7 +4,6 @@ import androidx.compose.runtime.*
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.example.voicereaderapp.data.remote.NetworkModule
 import com.example.voicereaderapp.data.repository.OCRRepositoryImpl
 import com.example.voicereaderapp.data.repository.TTSRepositoryImpl
 import java.io.File

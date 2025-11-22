@@ -3,8 +3,10 @@ package com.example.voicereaderapp.ui.reader
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.voicereaderapp.domain.model.DocumentType
+import com.example.voicereaderapp.domain.usecase.AskRagUseCase
 import com.example.voicereaderapp.domain.usecase.GetDocumentByIdUseCase
 import com.example.voicereaderapp.domain.usecase.UpdateReadPositionUseCase
+import com.example.voicereaderapp.domain.model.ChatMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,7 +21,9 @@ data class ReaderUiState(
     val documentType: DocumentType = DocumentType.LIVE_SCREEN,
     val isPlaying: Boolean = false,
     val currentWordIndex: Int = -1,
-    val error: String? = null
+    val error: String? = null,
+    val chatMessages: List<ChatMessage> = emptyList(), // List tin nhắn
+    val isChatLoading: Boolean = false
 )
 
 @HiltViewModel
@@ -27,8 +31,8 @@ class ReaderViewModel @Inject constructor(
     // TODO: Inject UseCases để lấy dữ liệu tài liệu
     private val updateReadPositionUseCase: UpdateReadPositionUseCase,
     private val getDocumentByIdUseCase: GetDocumentByIdUseCase,
-    private val ttsManager: TtsManager
-
+    private val ttsManager: TtsManager,
+    private val askRagUseCase: AskRagUseCase,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ReaderUiState())
@@ -148,4 +152,39 @@ class ReaderViewModel @Inject constructor(
         ttsManager.shutdown()   // ⭐ Dọn TextToSpeech khi ViewModel bị hủy
     }
 
+    fun askAi(question: String) {
+        viewModelScope.launch {
+            // 1. Thêm câu hỏi user vào UI ngay lập tức
+            val currentMessages = _uiState.value.chatMessages.toMutableList()
+            currentMessages.add(ChatMessage(question, true))
+
+            _uiState.value = _uiState.value.copy(
+                chatMessages = currentMessages,
+                isChatLoading = true
+            )
+
+            // 2. Gọi API hỏi AI
+            askRagUseCase(question)
+                .onSuccess { answer ->
+                    // Thêm câu trả lời bot vào UI
+                    val updatedMessages = _uiState.value.chatMessages.toMutableList()
+                    updatedMessages.add(ChatMessage(answer, false))
+
+                    _uiState.value = _uiState.value.copy(
+                        chatMessages = updatedMessages,
+                        isChatLoading = false
+                    )
+                }
+                .onFailure {
+                    // Xử lý lỗi (ví dụ bot trả lời câu mặc định)
+                    val updatedMessages = _uiState.value.chatMessages.toMutableList()
+                    updatedMessages.add(ChatMessage("Xin lỗi, server đang bận.", false))
+
+                    _uiState.value = _uiState.value.copy(
+                        chatMessages = updatedMessages,
+                        isChatLoading = false
+                    )
+                }
+        }
+    }
 }

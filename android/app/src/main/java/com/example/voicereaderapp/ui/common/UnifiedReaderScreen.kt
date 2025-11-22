@@ -19,6 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import coil.compose.AsyncImage
 import com.example.voicereaderapp.ui.pdfreader.SpeakerSelectionDialog
 
@@ -65,6 +66,7 @@ fun UnifiedReaderScreen(
     onVoiceChange: (voiceId: String, language: String) -> Unit,
     onTakeNote: () -> Unit = {},  // Added for Take Note feature
     onShowNotes: () -> Unit = {},  // Added for Notes button
+    onChat: () -> Unit,
     onBack: () -> Unit,
     // Global settings enforcement
     isSpeedEnforced: Boolean = false,
@@ -112,11 +114,31 @@ fun UnifiedReaderScreen(
                 )
             }
 
+            IconButton(
+                onClick = onChat,
+                modifier = Modifier
+                    .align(Alignment.CenterStart) // Align left
+                    .padding(start = 68.dp)       // 16dp (start) + 44dp (back btn size) + 8dp (spacing) = 68dp
+                    .size(44.dp)
+                    .zIndex(10f)
+                    .background(
+                        MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+                        CircleShape
+                    )
+            ) {
+                Icon(
+                    imageVector = Icons.Default.AutoAwesome, // Icon ✨
+                    contentDescription = "Chat AI",
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+
             // TITLE (center) with Marquee
             Box(
                 modifier = Modifier
                     .align(Alignment.Center)
-                    .fillMaxWidth(0.6f), // Leave space for buttons
+                    .fillMaxWidth()
+                    .padding(horizontal = 120.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(

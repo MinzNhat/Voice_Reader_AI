@@ -9,22 +9,17 @@ import android.os.ParcelFileDescriptor
 import android.provider.OpenableColumns
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -41,12 +36,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.example.voicereaderapp.data.remote.model.OCRWord
-import com.example.voicereaderapp.domain.model.DocumentType
-import com.example.voicereaderapp.domain.model.ReadingDocument
 import com.example.voicereaderapp.ui.common.ReaderMode
 import com.example.voicereaderapp.ui.common.UnifiedReaderScreen
-import com.example.voicereaderapp.ui.common.VerticalReaderPanel
-import com.example.voicereaderapp.ui.index.Screen
+import com.example.voicereaderapp.ui.component.ChatUi
 import com.example.voicereaderapp.ui.settings.SettingsViewModel
 import java.io.File
 
@@ -78,6 +70,8 @@ fun PDFViewerScreen(
     var showTakeNoteDialog by remember { mutableStateOf(false) }
     var showNotesScreen by remember { mutableStateOf(false) }
 
+    var showChatSheet by remember { mutableStateOf(false) }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     // Handle new import (fileUri provided)
     LaunchedEffect(fileUri) {
         if (fileUri != null) {
@@ -100,7 +94,10 @@ fun PDFViewerScreen(
         android.util.Log.d("PDFViewerScreen", "📱 LaunchedEffect triggered")
         android.util.Log.d("PDFViewerScreen", "   - fileUri: ${fileUri?.toString() ?: "null"}")
         android.util.Log.d("PDFViewerScreen", "   - documentId: ${documentId ?: "null"}")
-        android.util.Log.d("PDFViewerScreen", "   - Current audioBase64: ${if (uiState.audioBase64 == null) "NULL" else "present (${uiState.audioBase64!!.length} chars)"}")
+        android.util.Log.d(
+            "PDFViewerScreen",
+            "   - Current audioBase64: ${if (uiState.audioBase64 == null) "NULL" else "present (${uiState.audioBase64!!.length} chars)"}"
+        )
 
         if (documentId != null) {
             android.util.Log.d("PDFViewerScreen", "   -> Calling loadSavedDocument($documentId)")
@@ -134,7 +131,8 @@ fun PDFViewerScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
         UnifiedReaderScreen(
-            title = uiState.documentTitle ?: documentTitle?.removeSuffix(".pdf")?.removeSuffix(".PDF") ?: "PDF Document",
+            title = uiState.documentTitle ?: documentTitle?.removeSuffix(".pdf")?.removeSuffix(".PDF")
+            ?: "PDF Document",
             mode = ReaderMode.PDF,
             content = {
                 // PDF content with OCR text display
@@ -151,7 +149,10 @@ fun PDFViewerScreen(
             selectedLanguage = uiState.selectedLanguage,
             onPlayPause = {
                 android.util.Log.d("PDFViewerScreen", "▶️ Play/Pause button pressed")
-                android.util.Log.d("PDFViewerScreen", "   - audioBase64: ${if (uiState.audioBase64 == null) "NULL" else "${uiState.audioBase64!!.length} chars"}")
+                android.util.Log.d(
+                    "PDFViewerScreen",
+                    "   - audioBase64: ${if (uiState.audioBase64 == null) "NULL" else "${uiState.audioBase64!!.length} chars"}"
+                )
                 android.util.Log.d("PDFViewerScreen", "   - isPlaying: ${uiState.isPlaying}")
                 android.util.Log.d("PDFViewerScreen", "   - selectedVoice: ${uiState.selectedSpeaker}")
                 android.util.Log.d("PDFViewerScreen", "   - selectedLanguage: ${uiState.selectedLanguage}")
@@ -189,18 +190,44 @@ fun PDFViewerScreen(
             // Global settings enforcement
             isSpeedEnforced = settingsState.settings.useMainSpeedForAll,
             enforcedSpeed = settingsState.settings.mainSpeed,
-            isVoiceEnforced = settingsState.settings.useMainVoiceForAll
+            isVoiceEnforced = settingsState.settings.useMainVoiceForAll,
+            onChat = {
+                android.util.Log.d("DEBUG_CHAT", "Đã bấm nút Chat!") // <--- Check Logcat
+                showChatSheet = true
+            }
         )
+
+        // --- CHAT BOTTOM SHEET (Overlay) ---
+        if (showChatSheet) {
+            ModalBottomSheet(
+                onDismissRequest = { showChatSheet = false },
+                sheetState = sheetState,
+                containerColor = MaterialTheme.colorScheme.surface,
+                tonalElevation = 8.dp
+            ) {
+                // Gọi Component ChatUi
+                ChatUi(
+                    messages = uiState.chatMessages, // Lấy từ uiState chung
+                    isLoading = uiState.isChatLoading,
+                    onSend = { question ->
+                        viewModel.askAi(question)
+                    }
+                )
+            }
+        }
 
         // Take Note Dialog
         if (showTakeNoteDialog) {
             com.example.voicereaderapp.ui.common.TakeNoteDialog(
-                documentTitle = uiState.documentTitle ?: documentTitle?.removeSuffix(".pdf")?.removeSuffix(".PDF") ?: "PDF Document",
+                documentTitle = uiState.documentTitle ?: documentTitle?.removeSuffix(".pdf")?.removeSuffix(".PDF")
+                ?: "PDF Document",
                 onDismiss = { showTakeNoteDialog = false },
                 onSaveNote = { note ->
                     // Save note to database using NoteViewModel
                     val noteDocId = uiState.documentId ?: documentId ?: ""
-                    val noteDocTitle = uiState.documentTitle ?: documentTitle?.removeSuffix(".pdf")?.removeSuffix(".PDF") ?: "PDF Document"
+                    val noteDocTitle =
+                        uiState.documentTitle ?: documentTitle?.removeSuffix(".pdf")?.removeSuffix(".PDF")
+                        ?: "PDF Document"
 
                     if (noteDocId.isNotEmpty()) {
                         noteViewModel.saveNote(
@@ -525,7 +552,10 @@ fun PDFWithOCROverlay(
     ocrImageWidth: Int,
     ocrImageHeight: Int
 ) {
-    android.util.Log.e("PDF_VIEWER", "🔥 PDFWithOCROverlay - OCR words: ${ocrWords.size}, dims: ${ocrImageWidth}x${ocrImageHeight}")
+    android.util.Log.e(
+        "PDF_VIEWER",
+        "🔥 PDFWithOCROverlay - OCR words: ${ocrWords.size}, dims: ${ocrImageWidth}x${ocrImageHeight}"
+    )
 
     var bitmap by remember { mutableStateOf<Bitmap?>(null) }
     var pdfPageWidth by remember { mutableStateOf(0) }
@@ -673,12 +703,21 @@ fun PDFWithOCROverlay(
                         android.util.Log.d("OCR_DEBUG", "===== COORDINATE DEBUG =====")
                         android.util.Log.d("OCR_DEBUG", "Canvas size: $canvasWidth x $canvasHeight")
                         android.util.Log.d("OCR_DEBUG", "PDF dimensions: $pdfWidth x $pdfHeight")
-                        android.util.Log.d("OCR_DEBUG", "OCR image dimensions from backend: $ocrImageWidth x $ocrImageHeight")
-                        android.util.Log.d("OCR_DEBUG", "OCR image dimensions (actual): $actualOcrWidth x $actualOcrHeight")
+                        android.util.Log.d(
+                            "OCR_DEBUG",
+                            "OCR image dimensions from backend: $ocrImageWidth x $ocrImageHeight"
+                        )
+                        android.util.Log.d(
+                            "OCR_DEBUG",
+                            "OCR image dimensions (actual): $actualOcrWidth x $actualOcrHeight"
+                        )
                         android.util.Log.d("OCR_DEBUG", "Total scale: $totalScale")
                         android.util.Log.d("OCR_DEBUG", "Final offset: ($finalOffsetX, $finalOffsetY)")
                         android.util.Log.d("OCR_DEBUG", "Word: ${word.text}")
-                        android.util.Log.d("OCR_DEBUG", "BBox in OCR space: (${bbox.left}, ${bbox.top}) to (${bbox.right}, ${bbox.bottom})")
+                        android.util.Log.d(
+                            "OCR_DEBUG",
+                            "BBox in OCR space: (${bbox.left}, ${bbox.top}) to (${bbox.right}, ${bbox.bottom})"
+                        )
                     }
 
                     // ⭐ CRITICAL FIX: Two-step transformation
@@ -693,7 +732,10 @@ fun PDFWithOCROverlay(
 
                     if (index == 0) {
                         android.util.Log.d("OCR_DEBUG", "OCR→PDF scale: ($ocrToPdfScaleX, $ocrToPdfScaleY)")
-                        android.util.Log.d("OCR_DEBUG", "BBox in PDF space: ($pdfLeft, $pdfTop) to ($pdfRight, $pdfBottom)")
+                        android.util.Log.d(
+                            "OCR_DEBUG",
+                            "BBox in PDF space: ($pdfLeft, $pdfTop) to ($pdfRight, $pdfBottom)"
+                        )
                     }
 
                     // STEP 2: Transform from PDF Space → Canvas Space
@@ -703,7 +745,10 @@ fun PDFWithOCROverlay(
                     val canvasBottom = pdfBottom * totalScale + finalOffsetY
 
                     if (index == 0) {
-                        android.util.Log.d("OCR_DEBUG", "Transformed to canvas: ($canvasLeft, $canvasTop) to ($canvasRight, $canvasBottom)")
+                        android.util.Log.d(
+                            "OCR_DEBUG",
+                            "Transformed to canvas: ($canvasLeft, $canvasTop) to ($canvasRight, $canvasBottom)"
+                        )
                         android.util.Log.d("OCR_DEBUG", "===============================")
                     }
 
@@ -799,6 +844,7 @@ private fun uriToFile(context: Context, uri: Uri): File? {
                     else -> ".img"
                 }
             }
+
             mimeType == "application/pdf" -> ".pdf"
             mimeType == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" -> ".docx"
             mimeType == "application/msword" -> ".doc"
