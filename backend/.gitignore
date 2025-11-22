@@ -25,6 +25,8 @@ npm-debug.log*
 # Google Cloud credentials
 credentials/
 *.json
+!package.json
+!tsconfig.json
 
 # IDE
 .vscode/
