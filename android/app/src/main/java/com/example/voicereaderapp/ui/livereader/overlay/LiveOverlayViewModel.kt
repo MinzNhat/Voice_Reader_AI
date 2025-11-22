@@ -385,15 +385,19 @@ class LiveOverlayViewModel @Inject constructor(
                         val rawWords = result.data.words
                         val contentWords = rawWords.filter { it.bbox.y1 > 200 }
 
-                        if (isSmartDuplicate(lastSegmentWords, contentWords)) {
-                            Log.d("LiveReader", "🛑 End of Page detected (Duplicate). Stopping.")
+                        // 1. Check trùng lặp toàn trang (Global Check)
+                        // Nếu 2 trang giống nhau > 75%, coi như chưa scroll được -> DỪNG
+                        if (isGlobalDuplicate(lastSegmentWords, contentWords)) {
+                            Log.d("LiveReader", "🛑 Global Duplicate detected (>75% match). Stopping.")
                             _isReading.value = false
                             ttsRepository.stopAudio()
                             isAutoScrolling = false
                             return@launch
                         }
 
-                        val uniqueWords = smartMergeWords(lastSegmentWords, contentWords)
+                        // 2. Logic ghép văn bản "Hạng nặng"
+                        val uniqueWords = heavySmartMerge(lastSegmentWords, contentWords)
+
                         lastSegmentWords = contentWords
 
                         if (uniqueWords.isNotEmpty()) {
@@ -404,11 +408,14 @@ class LiveOverlayViewModel @Inject constructor(
                             _fullText.value += prefix + textSegment
 
                             val textToSpeak = uniqueWords.joinToString(" ") { it.text }
+                            Log.d("LiveReader", "✅ Merge result: $textToSpeak")
+                            Log.d("LiveReader", "✅ Full text: ${_fullText.value}")
 
                             playSegment(textToSpeak, contentWords, uniqueWords)
 
                         } else {
-                            Log.d("LiveReader", "⚠️ No new unique content found. Stopping.")
+                            // Trường hợp uniqueWords rỗng (do merge phát hiện trùng lặp phần đuôi)
+                            Log.d("LiveReader", "⚠️ Merge result is empty (Overlapped). Stopping.")
                             _isReading.value = false
                             isAutoScrolling = false
                         }
@@ -423,38 +430,97 @@ class LiveOverlayViewModel @Inject constructor(
         }
     }
 
-    // --- Helper Logic (Giữ nguyên thuật toán tốt từ trước) ---
-    private fun isSmartDuplicate(oldWords: List<OCRWord>, newWords: List<OCRWord>): Boolean {
-        if (oldWords.isEmpty() || newWords.isEmpty()) return false
-        if (abs(oldWords.size - newWords.size) < 10) {
-            val oldText = oldWords.joinToString(" ") { normalize(it.text) }
-            val newText = newWords.joinToString(" ") { normalize(it.text) }
-            return oldText == newText || calculateSimilarity(oldText, newText) > 0.9
-        }
-        return false
+    // --- HEAVY LOGIC HELPERS ---
+
+    /**
+     * Check trùng lặp toàn cục.
+     * Dùng khi scroll thất bại, hình ảnh không đổi.
+     */
+    private fun isGlobalDuplicate(oldWords: List<OCRWord>, newWords: List<OCRWord>): Boolean {
+        if (oldWords.isEmpty()) return false
+        if (newWords.isEmpty()) return true
+
+        // Nếu số lượng từ chênh lệch quá nhiều (> 20 từ) -> Khác nhau
+        if (kotlin.math.abs(oldWords.size - newWords.size) > 20) return false
+
+        val oldStr = oldWords.joinToString("") { normalize(it.text) }
+        val newStr = newWords.joinToString("") { normalize(it.text) }
+
+        val similarity = calculateSimilarity(oldStr, newStr)
+
+        // [TĂNG ĐỘ NHẠY] Giảm ngưỡng xuống 0.6 (60%).
+        // Nếu 2 trang giống nhau 60% (do OCR sai nhiều) -> Vẫn coi là trang cũ.
+        return similarity > 0.6
     }
 
-    private fun smartMergeWords(oldWords: List<OCRWord>, newWords: List<OCRWord>): List<OCRWord> {
+    /**
+     * Thuật toán ghép chữ SIÊU NẶNG:
+     * 1. Anchor cực lớn: 60% cuối trang cũ.
+     * 2. Chấp nhận sai số lớn: Similarity > 0.55 (55%).
+     */
+    private fun heavySmartMerge(oldWords: List<OCRWord>, newWords: List<OCRWord>): List<OCRWord> {
         if (oldWords.isEmpty()) return newWords
-        val sampleSize = 10.coerceAtMost(oldWords.size)
-        val sampleWords = oldWords.takeLast(sampleSize).map { normalize(it.text) }
-        val searchLimit = (newWords.size * 0.6).toInt()
+
+        // 1. Anchor Lớn: Lấy 50% số từ của trang cũ (hoặc ít nhất 20 từ)
+        // Lý do: Lấy càng nhiều từ thì xác suất trùng ngẫu nhiên càng thấp,
+        // cho phép ta giảm ngưỡng so sánh xuống thấp mà không sợ cắt nhầm.
+        val anchorSize = (oldWords.size * 0.6).toInt().coerceAtLeast(20)
+
+        // Lấy đoạn cuối
+        val anchorWords = oldWords.takeLast(anchorSize)
+        val anchorString = anchorWords.joinToString(" ") { normalize(it.text) }
+
+        // 2. Quét trên New Words (Quét 80% đầu trang mới)
+        val searchLimit = (newWords.size * 0.8).toInt()
+
+        var bestMatchIndex = -1
+        var bestMatchScore = 0.0
+
         for (i in 0..searchLimit) {
-            if (isFuzzyMatch(newWords, i, sampleWords)) {
-                val splitIndex = i + sampleSize
-                return if (splitIndex < newWords.size) newWords.subList(splitIndex, newWords.size) else emptyList()
+            if (i + anchorSize <= newWords.size) {
+                val candidateWords = newWords.subList(i, i + anchorSize)
+                val candidateString = candidateWords.joinToString(" ") { normalize(it.text) }
+
+                val similarity = calculateSimilarity(anchorString, candidateString)
+
+
+                if (similarity > 0.55) {
+                    if (similarity > bestMatchScore) {
+                        bestMatchScore = similarity
+                        bestMatchIndex = i
+                    }
+                }
             }
         }
-        return newWords
-    }
 
-    private fun isFuzzyMatch(fullList: List<OCRWord>, startIndex: Int, pattern: List<String>): Boolean {
-        if (startIndex + pattern.size > fullList.size) return false
-        var matchCount = 0
-        for (j in pattern.indices) {
-            if (normalize(fullList[startIndex + j].text) == pattern[j]) matchCount++
+        // Nếu tìm thấy điểm cắt hợp lý
+        if (bestMatchIndex != -1) {
+            Log.d("Merge", "🔥 FOUND MATCH: Index $bestMatchIndex, Score ${(bestMatchScore * 100).toInt()}%")
+
+            val splitIndex = bestMatchIndex + anchorSize
+
+            // Kiểm tra biên: Nếu điểm cắt vượt quá độ dài (tức là trùng hoàn toàn đuôi)
+            if (splitIndex >= newWords.size) {
+                return emptyList()
+            }
+
+            // Cắt và trả về phần mới
+            return newWords.subList(splitIndex, newWords.size)
         }
-        return (matchCount.toFloat() / pattern.size) > 0.7f
+
+        // 3. FALLBACK CUỐI CÙNG: So sánh toàn bộ
+        val oldFull = oldWords.joinToString("") { normalize(it.text) }
+        val newFull = newWords.joinToString("") { normalize(it.text) }
+        val globalSim = calculateSimilarity(oldFull, newFull)
+
+
+        if (globalSim > 0.54) {
+            Log.d("Merge", "⚠️ High global similarity ($globalSim) but no anchor match. Force duplicate detection.")
+            return emptyList()
+        }
+
+        Log.d("Merge", "⚠️ No overlap found. New Page.")
+        return newWords
     }
 
     private fun normalize(s: String) = s.lowercase().replace(Regex("[^a-z0-9]"), "")
@@ -463,7 +529,10 @@ class LiveOverlayViewModel @Inject constructor(
         if (s1 == s2) return 1.0
         val longer = if (s1.length > s2.length) s1 else s2
         val shorter = if (s1.length > s2.length) s2 else s1
-        return if (longer.isEmpty()) 0.0 else (longer.length - levenshtein(longer, shorter)) / longer.length.toDouble()
+        if (longer.isEmpty()) return 0.0
+        val l = longer.take(500)
+        val s = shorter.take(500)
+        return (l.length - levenshtein(l, s)) / l.length.toDouble()
     }
 
     private fun levenshtein(lhs: CharSequence, rhs: CharSequence): Int {
@@ -481,10 +550,6 @@ class LiveOverlayViewModel @Inject constructor(
         }
         return costs[rhsLen]
     }
-
-    // ============================================================================================
-    // PLAYBACK & SCROLL LOGIC [ĐÃ FIX LỖI SCROLL LIÊN TỤC]
-    // ============================================================================================
 
     private suspend fun playSegment(
         textToSpeak: String,
@@ -576,7 +641,7 @@ class LiveOverlayViewModel @Inject constructor(
         val swipeStartY = screenHeight * 0.5f
 
         // Đích đến: Đưa dòng chữ đang đọc lên vị trí cách top 200px
-        val targetDistance = (currentY - 400f).coerceAtLeast(0f)
+        val targetDistance = (currentY - 500f).coerceAtLeast(0f)
         var swipeEndY = swipeStartY - targetDistance
 
         // Chặn biên
@@ -587,7 +652,7 @@ class LiveOverlayViewModel @Inject constructor(
 
             scope.launch {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    delay(500)
+                    delay(1000)
                     captureAndProcess()
                 }
             }
@@ -598,7 +663,7 @@ class LiveOverlayViewModel @Inject constructor(
         service.performScroll(centerX, swipeStartY, swipeEndY)
 
         scope.launch {
-            delay(800)
+            delay(1000)
             if (_isReading.value && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 captureAndProcess()
             }
