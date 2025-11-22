@@ -229,7 +229,6 @@ backend/logs/
 !package.json
 !package-lock.json
 !tsconfig.json
-!backend/package.json
 
 # Uploads and temp files
 uploads/
