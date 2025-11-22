@@ -1,9 +1,9 @@
+import 'dotenv/config';
 import express, { Application, Request, Response } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
 import morgan from 'morgan';
-import dotenv from 'dotenv';
 import { rateLimit } from 'express-rate-limit';
 import path from 'path';
 
@@ -11,13 +11,12 @@ import path from 'path';
 import ocrRoutes from './routes/ocr.route';
 import ttsRoutes from './routes/tts.route';
 import pdfRoutes from './routes/pdf.route';
+import geminiRoutes from './routes/gemini.route';
 
 // Middleware
 import { errorHandler } from './middleware/error.middleware';
 import { notFoundHandler } from './middleware/notFound.middleware';
 
-// Load environment variables
-dotenv.config();
 
 const app: Application = express();
 const PORT = process.env.PORT || 3000;
@@ -68,6 +67,7 @@ app.get('/health', (req: Request, res: Response) => {
 app.use('/api/ocr', ocrRoutes);
 app.use('/api/tts', ttsRoutes);
 app.use('/api/pdf', pdfRoutes);
+app.use('/api/gemini', geminiRoutes);
 
 // Not found handler
 app.use(notFoundHandler);

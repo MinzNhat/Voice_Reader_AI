@@ -3,3 +3,4 @@ export * from './ocr.types';
 export * from './tts.types';
 export * from './pdf.types';
 export * from './response.types';
+export * from './gemini.types';
