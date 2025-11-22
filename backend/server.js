@@ -1,4 +1,4 @@
- require("dotenv").config();
+require("dotenv").config();
 
 const express = require("express");
 
@@ -112,9 +112,9 @@ const pineconeIndex = pinecone.Index(process.env.PINECONE_INDEX_NAME);
 
 const embeddings = new GoogleGenerativeAIEmbeddings({
 
-    model: "text-embedding-004", 
+    model: "text-embedding-004",
 
-    taskType: "RETRIEVAL_DOCUMENT", 
+    taskType: "RETRIEVAL_DOCUMENT",
 
     title: "Document",
 
@@ -168,15 +168,15 @@ function normalizeOCRResponse(naverResponse) {
 
         imageWidth = image.width ||
 
-                     image.inferResult?.width ||
+            image.inferResult?.width ||
 
-                     image.convertedImageInfo?.width || 0;
+            image.convertedImageInfo?.width || 0;
 
         imageHeight = image.height ||
 
-                      image.inferResult?.height ||
+            image.inferResult?.height ||
 
-                      image.convertedImageInfo?.height || 0;
+            image.convertedImageInfo?.height || 0;
 
 
         if (imageWidth === 0 || imageHeight === 0) {
@@ -654,7 +654,7 @@ app.post('/api/rag/ingest', async (req, res) => {
 
         const docs = await splitter.createDocuments([text]);
 
-        
+
 
         console.log(`   Splitting into ${docs.length} chunks and embedding...`);
 
@@ -693,7 +693,7 @@ app.post('/api/rag/ask', async (req, res) => {
 
         const vectorStore = await PineconeStore.fromExistingIndex(embeddings, { pineconeIndex: pineconeIndex });
 
-        
+
 
         // Tạo chain hỏi đáp
 
@@ -708,7 +708,7 @@ app.post('/api/rag/ask', async (req, res) => {
 
         const response = await chain.call({ query: question });
 
-        
+
 
         console.log("✅ Answer generated");
 
@@ -724,13 +724,36 @@ app.post('/api/rag/ask', async (req, res) => {
 
 });
 
-app.post('/api/summary', async (req, res) => {
+app.post('/api/summary', upload.any(), async (req, res) => {
+    let filePath = null;
     try {
-        console.log("📝 Summarizing...");
-        const { text } = req.body;
-        if (!text) return res.status(400).json({ error: "Missing text to summarize" });
+        console.log("📝 Summarizing from uploaded image...");
 
-        const content = text;
+        const imageFile = req.files?.find(f => f.fieldname === "image");
+        if (!imageFile) return res.status(400).json({ success: false, error: "No image file provided" });
+
+        filePath = imageFile.path;
+        const imageBuffer = fs.readFileSync(filePath);
+        let format = "png";
+        if (imageFile.mimetype === "application/pdf") format = "pdf";
+        else if (imageFile.mimetype.includes("jpeg") || imageFile.mimetype.includes("jpg")) format = "jpg";
+
+        const ocrResponse = await axios.post(
+            process.env.NAVER_OCR_URL,
+            {
+                version: "V2",
+                requestId: `req_summary_${Date.now()}`,
+                timestamp: Date.now(),
+                images: [{ format: format, name: imageFile.originalname || "document", data: imageBuffer.toString("base64") }]
+            },
+            { headers: { "X-OCR-SECRET": process.env.NAVER_OCR_SECRET, "Content-Type": "application/json" } }
+        );
+
+        const normalized = normalizeOCRResponse(ocrResponse.data);
+        deleteFile(filePath);
+
+        const content = normalized.text;
+        if (!content || content.trim().length === 0) return res.status(400).json({ success: false, error: "OCR returned no text" });
 
         const systemInstruction = `
             You are an intelligent OCR Text Summarizer specializing in mobile screen capture analysis. The content below was extracted from a screenshot and may include:
@@ -738,9 +761,9 @@ app.post('/api/summary', async (req, res) => {
             2. UI/Navigation artifacts (menu names, app names, buttons, timestamp, navigation bar text).
 
             Your task is three-fold:
-            1. **Filter and Clean:** Identify and ignore text clearly belonging to UI elements (e.g., 'Settings', 'Back', '10:30 AM', app names, navigation titles).
-            2. **Reconstruct:** Correct OCR errors and restore the logical flow of the main body text.
-            3. **Summarize:** Summarize the clean, reconstructed main body text concisely, aiming for a length suitable for the specified maximum tokens.
+            1. Filter and Clean: Identify and ignore text clearly belonging to UI elements (e.g., 'Settings', 'Back', '10:30 AM', app names, navigation titles).
+            2. Reconstruct: Correct OCR errors and restore the logical flow of the main body text.
+            3. Summarize: Summarize the clean, reconstructed main body text concisely, aiming for a length suitable for the specified maximum tokens.
 
             Output ONLY the final summary text, without any introductory phrases, commentary, or Markdown formatting.
         `;
@@ -751,11 +774,12 @@ app.post('/api/summary', async (req, res) => {
         const summary = result.content;
 
         console.log("✅ Summary generated");
-        res.json({ success: true, summary: summary });
+        res.json({ success: true, summary: summary, ocr: normalized });
 
     } catch (error) {
-        console.error("❌ Summary Error:", error);
-        res.status(500).json({ error: error.message });
+        console.error("❌ Summary Error:", error.response?.data || error.message || error);
+        if (filePath) deleteFile(filePath);
+        res.status(500).json({ error: error.message || error });
     }
 });
 
