@@ -60,6 +60,10 @@ class LiveOverlayService : LifecycleService() {
     private var micView: ComposeView? = null
     private lateinit var micLayoutParams: WindowManager.LayoutParams
 
+    // --- THÊM MỚI: Biến cho Highlight View ---
+    private var highlightView: ComposeView? = null
+    private lateinit var highlightLayoutParams: WindowManager.LayoutParams
+
     override fun onBind(intent: Intent): IBinder? {
         super.onBind(intent)
         return null
@@ -101,6 +105,9 @@ class LiveOverlayService : LifecycleService() {
             }
         }
 
+        // --- THÊM MỚI: Init và Show Highlight ---
+        initHighlightLayoutParams()
+        showHighlightOverlay()
 
         startForeground(NOTIFICATION_ID, createNotification())
     }
@@ -332,6 +339,53 @@ class LiveOverlayService : LifecycleService() {
         Log.d(TAG, "✅ Control view added to window manager")
     }
 
+
+
+    // --- THÊM HÀM MỚI ---
+    private fun initHighlightLayoutParams() {
+        highlightLayoutParams = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+
+            // QUAN TRỌNG:
+            // FLAG_NOT_FOCUSABLE: Không chiếm bàn phím
+            // FLAG_NOT_TOUCHABLE: Cho phép chạm xuyên qua (Click-through)
+            // FLAG_LAYOUT_IN_SCREEN: Vẽ tràn cả status bar (nếu cần)
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS, // Cho phép vẽ tràn ra ngoài giới hạn (tràn Status bar)
+
+            PixelFormat.TRANSLUCENT
+        )
+
+        // Cấu hình vị trí tuyệt đối từ góc trên cùng bên trái (0,0)
+        highlightLayoutParams.gravity = android.view.Gravity.TOP or android.view.Gravity.START
+        highlightLayoutParams.x = 0
+        highlightLayoutParams.y = 0
+
+        // XỬ LÝ TAI THỎ (NOTCH/CUTOUT) - Android 9 (API 28) trở lên
+        // Nếu không có dòng này, overlay sẽ bị cắt lẹm ở vùng camera
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            highlightLayoutParams.layoutInDisplayCutoutMode =
+                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+        }
+    }
+
+    // --- THÊM HÀM MỚI ---
+    private fun showHighlightOverlay() {
+        if (highlightView == null) {
+            highlightView = createComposeView {
+                // Gọi Composable vẽ chúng ta vừa tạo
+                LiveHighlightOverlay(viewModel = viewModel)
+            }
+            // Add view này vào WindowManager
+            // Mẹo: Add highlightView TRƯỚC controlView (nếu có thể) để nó nằm dưới nút bấm
+            windowManager.addView(highlightView, highlightLayoutParams)
+        }
+    }
+
     private fun showMicView() {
         if (micView == null) {
             micView = createComposeView {
@@ -399,6 +453,8 @@ class LiveOverlayService : LifecycleService() {
         controlView = null
         expandedOverlayView = null
         micView = null
+        highlightView?.let { windowManager.removeView(it) }
+        highlightView = null
 
         stopForeground(true)
     }

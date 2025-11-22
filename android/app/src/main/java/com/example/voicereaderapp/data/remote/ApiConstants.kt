@@ -6,6 +6,7 @@ object ApiConstants {
 //    const val BASE_URL = "http://49.50.134.27:3000/"
     const val BASE_URL = "http://192.168.1.197:3000/"
 
+
     const val API_KEY = "your-secure-api-key-here" // Match backend .env
 
     // Endpoints

@@ -119,4 +119,6 @@
     <string name="rewind_5_seconds">Rewind 5 seconds</string>
     <string name="forward_5_seconds">Forward 5 seconds</string>
     <string name="play_pause">Play/Pause</string>
+
+    <string name="accessibility_service_description">Ứng dụng cần quyền Trợ năng để thực hiện tự động cuộn trang (auto-scroll) và chụp màn hình để đọc nội dung.</string>
 </resources>

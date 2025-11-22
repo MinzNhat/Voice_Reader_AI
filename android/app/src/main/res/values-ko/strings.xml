@@ -119,4 +119,6 @@
     <string name="rewind_5_seconds">5초 되감기</string>
     <string name="forward_5_seconds">5초 빨리감기</string>
     <string name="play_pause">재생/일시정지</string>
+
+    <string name="accessibility_service_description">Ứng dụng cần quyền Trợ năng để thực hiện tự động cuộn trang (auto-scroll) và chụp màn hình để đọc nội dung.</string>
 </resources>
