@@ -60,6 +60,7 @@ dependencies {
     implementation("com.google.code.gson:gson:2.10.1")
     implementation("androidx.compose.material:material-icons-extended:1.5.4")
     implementation(libs.androidx.lifecycle.service)
+    implementation(libs.androidx.media3.common.ktx)
 
     val cameraxVersion = "1.4.0"
 

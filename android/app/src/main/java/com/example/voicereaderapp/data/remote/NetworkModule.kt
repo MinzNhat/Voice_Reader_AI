@@ -16,7 +16,7 @@ object NetworkModule {
     // TODO: Update this to your backend server URL
     // For Android Emulator: http://10.0.2.2:3000
     // For physical device: http://YOUR_IP:3000
-    private const val BASE_URL = "http://192.168.1.197:3000/"
+    private const val BASE_URL = "http://192.168.1.16:3000/"
 
     private val loggingInterceptor = HttpLoggingInterceptor().apply {
         level = HttpLoggingInterceptor.Level.BODY

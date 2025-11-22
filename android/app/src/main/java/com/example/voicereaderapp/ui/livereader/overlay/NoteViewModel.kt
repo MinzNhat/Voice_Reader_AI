@@ -1,5 +1,6 @@
 package com.example.voicereaderapp.ui.livereader.overlay
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.voicereaderapp.data.local.entity.NoteEntity
@@ -87,6 +88,7 @@ class NoteViewModel @Inject constructor(private val noteRepository: NoteReposito
 
     fun deleteNote(noteId: Long) {
         viewModelScope.launch(Dispatchers.IO) {
+            Log.d("NoteViewModel", "Deleting note with ID: $noteId")
             noteRepository.deleteNoteById(noteId)
         }
     }

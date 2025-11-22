@@ -60,10 +60,12 @@ import com.example.voicereaderapp.ui.livereader.overlay.LiveOverlayService
 import com.example.voicereaderapp.ui.pdfreader.DocumentPickerScreen
 import com.example.voicereaderapp.ui.pdfreader.PDFViewerScreen
 import android.app.ActivityManager
+import android.content.ComponentName
 import android.content.Context
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import com.example.voicereaderapp.MainActivity
+import com.example.voicereaderapp.domain.service.ScreenReaderAccessibilityService
 import com.example.voicereaderapp.ui.livereader.overlay.NoteViewModel
 import com.example.voicereaderapp.ui.livereader.overlay.note.NoteDetailScreen
 import com.example.voicereaderapp.ui.livereader.overlay.note.NoteListScreen
@@ -261,6 +263,16 @@ fun IndexScreen(
 //        ImportSource(ImportSourceType.GMAIL, R.string.gmail, Icons.Default.Email, Color(0xFFEF4444)),
 //        ImportSource(ImportSourceType.MESSENGER, R.string.messenger, Icons.Default.Message, Color(0xFF0EA5E9))
     )
+
+    fun isAccessibilityEnabled(context: Context): Boolean {
+        val componentName = ComponentName(context, ScreenReaderAccessibilityService::class.java)
+        val enabledServices = Settings.Secure.getString(
+            context.contentResolver,
+            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+        ) ?: return false
+        return enabledServices.contains(componentName.flattenToString())
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -358,19 +370,31 @@ fun IndexScreen(
                         isLiveScanEnabled = isLiveScanEnabled,
                         onLiveScanToggle = { isChecked ->
                             if (isChecked) {
-                                // Người dùng muốn BẬT
-                                val hasPermission = Settings.canDrawOverlays(context)
-                                if (hasPermission) {
-                                    LiveOverlayService.start(context, "Live Reader đã được kích hoạt.")
-                                    isLiveScanEnabled = true
-                                } else {
+                                // BƯỚC 1: Kiểm tra quyền Overlay (Vẽ đè)
+                                if (!Settings.canDrawOverlays(context)) {
                                     wasPermissionRequested = true
                                     val intent = Intent(
                                         Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                                         Uri.parse("package:${context.packageName}")
                                     )
                                     overlayPermissionLauncher.launch(intent)
+                                    return@ImportSectionCard
                                 }
+
+                                // BƯỚC 2: Kiểm tra quyền Accessibility (Trợ năng) -> THÊM MỚI
+                                if (!isAccessibilityEnabled(context)) {
+                                    wasPermissionRequested = true
+                                    val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                                    context.startActivity(intent)
+                                    // Có thể hiện Toast hướng dẫn user
+                                    android.widget.Toast.makeText(context, "Vui lòng bật Trợ năng cho VoiceReader để dùng tính năng cuộn & chụp", android.widget.Toast.LENGTH_LONG).show()
+                                    return@ImportSectionCard
+                                }
+
+                                // BƯỚC 3: Nếu đủ cả 2 quyền -> Bật Service
+                                LiveOverlayService.start(context, "Live Reader kích hoạt")
+                                isLiveScanEnabled = true
+
                             } else {
                                 // Người dùng muốn TẮT
                                 LiveOverlayService.stop(context)
