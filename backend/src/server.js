@@ -54,11 +54,11 @@ function normalizeOCRResponse(naverResponse) {
 
         // CRITICAL: Capture the actual image dimensions NAVER used for OCR
         imageWidth = image.width ||
-                     image.inferResult?.width ||
-                     image.convertedImageInfo?.width || 0;
+            image.inferResult?.width ||
+            image.convertedImageInfo?.width || 0;
         imageHeight = image.height ||
-                      image.inferResult?.height ||
-                      image.convertedImageInfo?.height || 0;
+            image.inferResult?.height ||
+            image.convertedImageInfo?.height || 0;
 
         // If still 0, calculate from bounding box coordinates
         if (imageWidth === 0 || imageHeight === 0) {
@@ -493,6 +493,41 @@ app.post("/api/tts/timing", async (req, res) => {
 });
 
 // ====================================================
+// ENDPOINT 6: POST /api/gemini/summarize
+// ====================================================
+const GeminiService = require("./services/gemini.service");
+const geminiService = new GeminiService();
+app.post("/api/gemini/summarize", async (req, res) => {
+    try {
+        const { content, model } = req.body;
+
+        if (!content) {
+            return res.status(400).json({
+                success: false,
+                error: "No content provided for summarization"
+            });
+        }
+
+        const result = await geminiService.summarize(content, { model });
+
+        res.json({
+            success: true,
+            data: {
+                summary: result.summary,
+                model: result.model,
+                tokensUsed: result.tokensUsed
+            }
+        });
+    } catch (err) {
+        res.status(500).json({
+            success: false,
+            error: "Gemini summarization failed",
+            message: err.message
+        });
+    }
+});
+
+// ====================================================
 // START SERVER
 // ====================================================
 const PORT = process.env.PORT || 3000;
@@ -504,4 +539,5 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`🔊 TTS endpoint: POST http://localhost:${PORT}/api/tts/synthesize`);
     console.log(`⏱️  Timing endpoint: POST http://localhost:${PORT}/api/tts/timing`);
     console.log(`🏥 Health check: GET http://localhost:${PORT}/health`);
+    console.log(`🤖 Gemini summarize: POST http://localhost:${PORT}/api/gemini/summarize`);
 });
