@@ -30,6 +30,8 @@ import java.io.File
 import com.example.voicereaderapp.utils.Result
 import kotlinx.coroutines.withContext
 import java.io.FileOutputStream
+import java.util.concurrent.atomic.AtomicLong
+import kotlin.math.abs
 
 
 // Deprecated: Use TTSVoice from domain model instead
@@ -321,18 +323,15 @@ class LiveOverlayViewModel @Inject constructor(
 
     fun expandOverlay() {
         _isExpanded.value = true
-        // Khi mở rộng, lớp phủ chính cần có khả năng tương tác để bắt sự kiện chạm
         setOverlayInteractive(true)
     }
 
     fun collapseOverlay() {
         _isExpanded.value = false
-        // Khi thu gọn, ta không cần lớp phủ tương tác nữa
         setOverlayInteractive(false)
     }
 
     fun setOverlayInteractive(interactive: Boolean) {
-        // Chỉ thay đổi nếu giá trị mới khác giá trị cũ để tránh cập nhật thừa
         if (_isInteractive.value != interactive) {
             _isInteractive.value = interactive
         }
@@ -341,19 +340,29 @@ class LiveOverlayViewModel @Inject constructor(
     // ----------------------------------- implementation for live reader ocr --------------------------------------
 
     private var isAutoScrolling = false
-    private var lastSegmentWords: List<OCRWord> = emptyList() // Lưu list từ của lần chụp trước
+    private var lastSegmentWords: List<OCRWord> = emptyList()
     private var globalWordIndex = 0 // Index highlight toàn cục
 
-    // Danh sách toàn bộ các từ đang hiển thị trên màn hình (có tọa độ bbox)
     private val _currentPageWords = MutableStateFlow<List<OCRWord>>(emptyList())
     val currentPageWords: StateFlow<List<OCRWord>> = _currentPageWords
 
-    // Index cục bộ trên màn hình (để biết đang đọc từ thứ mấy trên màn hình này)
     private val _currentLocalIndex = MutableStateFlow(-1)
     val currentLocalIndex: StateFlow<Int> = _currentLocalIndex
 
     private var hasScrolledCurrentPage = false
+    private val playbackSessionId = AtomicLong(0)
 
+
+    fun startLiveReading() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            _isReading.value = true
+            lastSegmentWords = emptyList()
+            _fullText.value = ""
+            isAutoScrolling = false
+            hasScrolledCurrentPage = false
+            captureAndProcess()
+        }
+    }
 
     // Alg để ghép văn bản
     /**
@@ -361,77 +370,9 @@ class LiveOverlayViewModel @Inject constructor(
      * 2. Tìm đoạn đó ở đầu text mới.
      * 3. Loại bỏ phần trùng lặp và nối phần còn lại.
      */
-    private fun getUniqueNewWords(oldWords: List<OCRWord>, newWords: List<OCRWord>): List<OCRWord> {
-        if (oldWords.isEmpty()) return newWords
-
-        // Dùng coerceAtLeast(1) để đảm bảo ít nhất có 1 từ nếu list quá ngắn
-        val anchorSize = (oldWords.size * 0.5).toInt().coerceAtLeast(1)
-
-        // Lấy list text của anchor (50% cuối cùng)
-        val anchorWords = oldWords.takeLast(anchorSize).map { it.text }
-
-        // Giới hạn vùng tìm kiếm: Chỉ quét trong 50% đầu của list mới
-        val searchLimit = (newWords.size * 0.5).toInt().coerceAtLeast(anchorSize)
-
-        // Quét newWords để tìm anchor
-        for (i in 0..searchLimit) {
-            if (isSubListMatch(newWords, i, anchorWords)) {
-                val splitIndex = i + anchorSize
-
-                if (splitIndex < newWords.size) {
-                    Log.d("LiveReader", "✅ MERGE: Match found at $i. Taking new words from index $splitIndex.")
-                    return newWords.subList(splitIndex, newWords.size)
-                } else {
-                    Log.d("LiveReader", "⚠️ MERGE: Full overlap (Trùng hoàn toàn).")
-                    return emptyList()
-                }
-            }
-        }
-
-        Log.d("LiveReader", "⚠️ MERGE: No overlap found (Không tìm thấy 30% đuôi). Appending all.")
-        return newWords
-    }
-
-    /**
-     * Helper: So sánh list con
-     */
-    private fun isSubListMatch(fullList: List<OCRWord>, startIndex: Int, pattern: List<String>): Boolean {
-        if (startIndex + pattern.size > fullList.size) return false
-        for (j in pattern.indices) {
-            // So sánh chính xác text (có thể thêm trim() nếu cần)
-            if (fullList[startIndex + j].text != pattern[j]) {
-                return false
-            }
-        }
-        return true
-    }
-
-    // Hàm được gọi từ UI khi bấm Play Live Read
-    fun startLiveReading() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            _isReading.value = true
-            lastSegmentWords = emptyList()
-            _fullText.value = ""
-            globalWordIndex = 0
-            isAutoScrolling = false
-            Log.d("CAPTURE_PROC", " start capture")
-            captureAndProcess()
-        }
-    }
-
-    fun onUserInteracted() {
-        // User chạm vào màn hình -> Tạm dừng
-        if (isReading.value) {
-            Log.d("LiveReader", "User interacted -> Pausing Live Reader")
-            toggleReading() // Pause TTS
-            isAutoScrolling = false
-        }
-    }
-
     @RequiresApi(Build.VERSION_CODES.R)
     private fun captureAndProcess() {
         val service = ScreenReaderAccessibilityService.instance ?: return
-        Log.d("CAPTURE_PROC", "📸 Capturing...")
 
         service.captureScreen { bitmap ->
             scope.launch {
@@ -441,32 +382,33 @@ class LiveOverlayViewModel @Inject constructor(
                     val result = ocrRepository.performOCR(imageFile)
 
                     if (result is Result.Success) {
-                        val currentRawWords = result.data.words
-                        val contentWords = currentRawWords.filter { it.bbox.y1 > 100 }
+                        val rawWords = result.data.words
+                        val contentWords = rawWords.filter { it.bbox.y1 > 200 }
 
-                        if (isContentDuplicate(lastSegmentWords, contentWords)) {
-                            Log.d("LiveReader", "🛑 Duplicate content detected. Stop reading.")
-
+                        if (isSmartDuplicate(lastSegmentWords, contentWords)) {
+                            Log.d("LiveReader", "🛑 End of Page detected (Duplicate). Stopping.")
                             _isReading.value = false
                             ttsRepository.stopAudio()
                             isAutoScrolling = false
-
                             return@launch
                         }
 
-                        _currentPageWords.value = contentWords
-                        val uniqueWords = getUniqueNewWords(lastSegmentWords, contentWords)
-                        lastSegmentWords = contentWords // Cập nhật last segment
+                        val uniqueWords = smartMergeWords(lastSegmentWords, contentWords)
+                        lastSegmentWords = contentWords
 
                         if (uniqueWords.isNotEmpty()) {
+                            _currentPageWords.value = contentWords
+
                             val textSegment = uniqueWords.joinToString(" ") { it.text }
                             val prefix = if (_fullText.value.isEmpty()) "" else " "
                             _fullText.value += prefix + textSegment
 
-                            val fullScreenText = contentWords.joinToString(" ") { it.text }
-                            playSegment(fullScreenText, contentWords)
+                            val textToSpeak = uniqueWords.joinToString(" ") { it.text }
+
+                            playSegment(textToSpeak, contentWords, uniqueWords)
+
                         } else {
-                            Log.d("LiveReader", "⚠️ No new words found. Stopping.")
+                            Log.d("LiveReader", "⚠️ No new unique content found. Stopping.")
                             _isReading.value = false
                             isAutoScrolling = false
                         }
@@ -481,39 +423,84 @@ class LiveOverlayViewModel @Inject constructor(
         }
     }
 
-    // --- [HÀM MỚI] Kiểm tra độ giống nhau giữa 2 list từ ---
-    private fun isContentDuplicate(oldWords: List<OCRWord>, newWords: List<OCRWord>): Boolean {
+    // --- Helper Logic (Giữ nguyên thuật toán tốt từ trước) ---
+    private fun isSmartDuplicate(oldWords: List<OCRWord>, newWords: List<OCRWord>): Boolean {
         if (oldWords.isEmpty() || newWords.isEmpty()) return false
-
-        // Nếu số lượng từ chênh lệch quá nhiều -> Chắc chắn khác nhau
-        if (Math.abs(oldWords.size - newWords.size) > 5) return false
-
-        // So sánh 5 từ đầu và 5 từ cuối để kiểm tra nhanh
-        val checkCount = 5.coerceAtMost(oldWords.size)
-
-        val oldHead = oldWords.take(checkCount).joinToString { it.text }
-        val newHead = newWords.take(checkCount).joinToString { it.text }
-
-        val oldTail = oldWords.takeLast(checkCount).joinToString { it.text }
-        val newTail = newWords.takeLast(checkCount).joinToString { it.text }
-
-        // Nếu cả đầu và đuôi đều giống nhau -> Trùng lặp 99%
-        return oldHead == newHead && oldTail == newTail
+        if (abs(oldWords.size - newWords.size) < 10) {
+            val oldText = oldWords.joinToString(" ") { normalize(it.text) }
+            val newText = newWords.joinToString(" ") { normalize(it.text) }
+            return oldText == newText || calculateSimilarity(oldText, newText) > 0.9
+        }
+        return false
     }
 
-    // ------------------------------------------------------------------------------
-    // 3. PLAYBACK & SCROLL
-    // ------------------------------------------------------------------------------
+    private fun smartMergeWords(oldWords: List<OCRWord>, newWords: List<OCRWord>): List<OCRWord> {
+        if (oldWords.isEmpty()) return newWords
+        val sampleSize = 10.coerceAtMost(oldWords.size)
+        val sampleWords = oldWords.takeLast(sampleSize).map { normalize(it.text) }
+        val searchLimit = (newWords.size * 0.6).toInt()
+        for (i in 0..searchLimit) {
+            if (isFuzzyMatch(newWords, i, sampleWords)) {
+                val splitIndex = i + sampleSize
+                return if (splitIndex < newWords.size) newWords.subList(splitIndex, newWords.size) else emptyList()
+            }
+        }
+        return newWords
+    }
+
+    private fun isFuzzyMatch(fullList: List<OCRWord>, startIndex: Int, pattern: List<String>): Boolean {
+        if (startIndex + pattern.size > fullList.size) return false
+        var matchCount = 0
+        for (j in pattern.indices) {
+            if (normalize(fullList[startIndex + j].text) == pattern[j]) matchCount++
+        }
+        return (matchCount.toFloat() / pattern.size) > 0.7f
+    }
+
+    private fun normalize(s: String) = s.lowercase().replace(Regex("[^a-z0-9]"), "")
+
+    private fun calculateSimilarity(s1: String, s2: String): Double {
+        if (s1 == s2) return 1.0
+        val longer = if (s1.length > s2.length) s1 else s2
+        val shorter = if (s1.length > s2.length) s2 else s1
+        return if (longer.isEmpty()) 0.0 else (longer.length - levenshtein(longer, shorter)) / longer.length.toDouble()
+    }
+
+    private fun levenshtein(lhs: CharSequence, rhs: CharSequence): Int {
+        val lhsLen = lhs.length
+        val rhsLen = rhs.length
+        var costs = IntArray(rhsLen + 1) { it }
+        for (i in 1..lhsLen) {
+            val newCosts = IntArray(rhsLen + 1) { 0 }
+            newCosts[0] = i
+            for (j in 1..rhsLen) {
+                val cost = if (lhs[i - 1] == rhs[j - 1]) 0 else 1
+                newCosts[j] = minOf(newCosts[j - 1] + 1, costs[j] + 1, costs[j - 1] + cost)
+            }
+            costs = newCosts
+        }
+        return costs[rhsLen]
+    }
+
+    // ============================================================================================
+    // PLAYBACK & SCROLL LOGIC [ĐÃ FIX LỖI SCROLL LIÊN TỤC]
+    // ============================================================================================
 
     private suspend fun playSegment(
-        textToSpeak: String,                // Text gửi đi TTS
-        wordsOnScreen: List<OCRWord>        // List từ có BBox để vẽ/scroll
+        textToSpeak: String,
+        allWordsOnScreen: List<OCRWord>,
+        uniqueWordsToRead: List<OCRWord>
     ) {
         val voiceId = _selectedVoiceId.value
-        Log.d("SPEAKING", textToSpeak)
-        // 1. Gọi API TTS
+
+        // 1. Tạo ID phiên mới. Các callback từ phiên cũ (TTS đang đọc dở) sẽ bị vô hiệu hóa.
+        val currentSession = playbackSessionId.incrementAndGet()
+
+        // 2. Reset trạng thái cuộn cho trang MỚI này
         hasScrolledCurrentPage = false
         isAutoScrolling = false
+
+        if (textToSpeak.isBlank()) return
 
         val audioResult = ttsRepository.generateSpeech(textToSpeak, voiceId)
 
@@ -526,89 +513,94 @@ class LiveOverlayViewModel @Inject constructor(
                     base64Audio = audioResult.data,
                     playbackSpeed = _speed.value,
                     onProgress = { currentMs ->
+                        // [FIX] Kiểm tra Session ID: Nếu không khớp ID mới nhất -> Bỏ qua ngay lập tức
+                        if (playbackSessionId.get() != currentSession) return@playAudio
+
                         val calibratedMs = (currentMs * 1f).toLong()
-                        val index = rawTimings.indexOfLast {
+                        // 1. Tìm từ đang đọc trong danh sách uniqueWords
+                        val uniqueIndex = rawTimings.indexOfLast {
                             calibratedMs >= it.startMs && calibratedMs < it.endMs
                         }
 
-                        if (index != -1 && index < wordsOnScreen.size) {
-                            _currentLocalIndex.value = index
+                        // 2. Map sang vị trí trên màn hình
+                        if (uniqueIndex != -1 && uniqueIndex < uniqueWordsToRead.size) {
+                            val wordBeingRead = uniqueWordsToRead[uniqueIndex]
 
-                            val currentY = wordsOnScreen[index].bbox.y1
-                            checkAndTriggerScroll(index, wordsOnScreen.size, currentY)
+                            // Tìm vị trí thật trên màn hình để highlight
+                            val screenIndex = allWordsOnScreen.indexOfLast {
+                                it.bbox == wordBeingRead.bbox && it.text == wordBeingRead.text
+                            }
+
+                            if (screenIndex != -1) {
+                                _currentLocalIndex.value = screenIndex
+                                val currentY = allWordsOnScreen[screenIndex].bbox.y1
+
+                                checkAndTriggerScroll(currentY, screenIndex, allWordsOnScreen.size)
+                            }
                         }
                     },
                     onComplete = {
-                        _currentLocalIndex.value = -1
+                        if (playbackSessionId.get() == currentSession) {
+                            _currentLocalIndex.value = -1
+                        }
                     }
                 )
             }
         }
     }
 
-    private fun checkAndTriggerScroll(
-        currentIndex: Int,
-        totalWords: Int,
-        currentY: Float
-    ) {
-        if (!isAutoScrolling && !hasScrolledCurrentPage && totalWords > 0 && currentIndex >= (totalWords * 0.5)) {
-            Log.d("LiveReader", "🎯 Trigger Scroll at index $currentIndex / $totalWords")
+    private fun checkAndTriggerScroll(currentY: Float, currentIndex: Int, totalWords: Int) {
+        val screenHeight = context.resources.displayMetrics.heightPixels.toFloat()
+
+        if (!isAutoScrolling && !hasScrolledCurrentPage &&
+            currentIndex > (totalWords * 0.5) &&
+            currentY > (screenHeight * 0.5)) {
+
+            Log.d("LiveReader", "🎯 Triggering Scroll: Idx=$currentIndex/$totalWords, Y=$currentY")
             performScroll(currentY)
         }
     }
 
-    private fun performScroll(currentY: Float?) {
+    private fun performScroll(currentY: Float) {
         val service = ScreenReaderAccessibilityService.instance ?: return
 
+        // Khóa ngay lập tức
         hasScrolledCurrentPage = true
         isAutoScrolling = true
 
         val displayMetrics = context.resources.displayMetrics
         val screenHeight = displayMetrics.heightPixels.toFloat()
-        val screenWidth = displayMetrics.widthPixels.toFloat()
-        val centerX = screenWidth / 2f
+        val centerX = displayMetrics.widthPixels.toFloat() / 2f
 
-        val swipeStartY = screenHeight * 0.4f
+        // Vuốt từ 50% màn hình lên
+        val swipeStartY = screenHeight * 0.5f
 
-        val targetDistance = if (currentY != null) {
-            val topMargin = 400f
-            (currentY - topMargin).coerceAtLeast(0f)
-        } else {
-            screenHeight * 0.4f
-        }
-
+        // Đích đến: Đưa dòng chữ đang đọc lên vị trí cách top 200px
+        val targetDistance = (currentY - 400f).coerceAtLeast(0f)
         var swipeEndY = swipeStartY - targetDistance
 
-        if (swipeEndY < 100f) {
-            swipeEndY = 100f
-        }
+        // Chặn biên
+        if (swipeEndY < 100f) swipeEndY = 100f
 
-        if (swipeEndY >= swipeStartY) {
-            Log.d("LiveReader", "🛑 Cannot scroll further (Target unreachable).")
+        if (swipeStartY - swipeEndY < 50f) {
+            Log.d("LiveReader", "🛑 Distance too small (End of Page?). Skip scroll.")
+
             scope.launch {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    delay(500)
                     captureAndProcess()
                 }
             }
             return
         }
 
-        Log.d("LiveReader", "Smart Scroll: currentY=$currentY. Swipe: $swipeStartY -> $swipeEndY")
-
+        Log.d("LiveReader", "Scroling: $swipeStartY -> $swipeEndY")
         service.performScroll(centerX, swipeStartY, swipeEndY)
 
         scope.launch {
-            // Chờ animation vuốt hoàn tất (500ms)
-            delay(500)
-
-            if (_isReading.value) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    Log.d("LiveReader", "📸 Scroll done. Capturing next segment...")
-                    captureAndProcess()
-                }
-            } else {
-                // Chỉ reset nếu người dùng chủ động Pause
-                isAutoScrolling = false
+            delay(800)
+            if (_isReading.value && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                captureAndProcess()
             }
         }
     }
