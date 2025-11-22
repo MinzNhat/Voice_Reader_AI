@@ -12,15 +12,19 @@ import ocrRoutes from './routes/ocr.route';
 import ttsRoutes from './routes/tts.route';
 import pdfRoutes from './routes/pdf.route';
 import geminiRoutes from './routes/gemini.route';
+import ragRoutes from './routes/rag.route';
 
 // Middleware
 import { errorHandler } from './middleware/error.middleware';
 import { notFoundHandler } from './middleware/notFound.middleware';
 
 
+
 const app: Application = express();
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
+
+app.use(express.static(path.join(__dirname, '../public')));
 
 // Security middleware
 app.use(helmet());
@@ -68,6 +72,7 @@ app.use('/api/ocr', ocrRoutes);
 app.use('/api/tts', ttsRoutes);
 app.use('/api/pdf', pdfRoutes);
 app.use('/api/gemini', geminiRoutes);
+app.use('/api/rag', ragRoutes);
 
 // Not found handler
 app.use(notFoundHandler);

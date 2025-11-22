@@ -28,7 +28,6 @@
         <h1>🎙️ Voice Reader AI - API Test Panel</h1>
 
         <div class="grid">
-            <!-- OCR Test -->
             <div class="section">
                 <h2>📝 Test OCR</h2>
                 <input type="file" id="ocrFile" accept="image/*,application/pdf">
@@ -36,7 +35,6 @@
                 <div id="ocrResult"></div>
             </div>
 
-            <!-- OCR Crop Test -->
             <div class="section">
                 <h2>✂️ Test OCR with Crop</h2>
                 <input type="file" id="cropFile" accept="image/*">
@@ -50,7 +48,6 @@
                 <div id="cropResult"></div>
             </div>
 
-            <!-- TTS Test -->
             <div class="section">
                 <h2>🔊 Test TTS</h2>
                 <textarea id="ttsText" rows="4" placeholder="Enter text to convert to speech...">Hello world, this is a test.</textarea>
@@ -59,7 +56,6 @@
                 <div id="ttsResult"></div>
             </div>
 
-            <!-- Timing Test -->
             <div class="section">
                 <h2>⏱️ Test Timing</h2>
                 <textarea id="timingText" rows="4" placeholder="Enter text for timing calculation...">Hello world this is a test</textarea>
@@ -67,10 +63,14 @@
                 <div id="timingResult"></div>
             </div>
         </div>
+        
+        <div style="text-align: center; margin-top: 20px;">
+            <a href="/rag.html" style="font-size: 18px; color: #0066cc; text-decoration: none;">👉 Go to RAG Chatbot Demo</a>
+        </div>
     </div>
 
 <script>
-
+    // Cấu hình Base URL (Chạy local thì dùng localhost)
     const API_BASE = "http://localhost:3000/api";
 
     function showResult(elementId, data, isError = false) {
@@ -80,11 +80,12 @@
     }
 
     async function testOCR() {
-        const file = document.getElementById("ocrFile").files[0];
+        const fileInput = document.getElementById("ocrFile");
+        const file = fileInput.files[0];
         if (!file) return alert("Please select a file");
 
         const formData = new FormData();
-        formData.append("image", file);  // FIX: must match multer.single("image")
+        formData.append("image", file);
 
         try {
             const res = await fetch(`${API_BASE}/ocr/extract`, {
@@ -99,15 +100,16 @@
     }
 
     async function testCrop() {
-        const file = document.getElementById("cropFile").files[0];
+        const fileInput = document.getElementById("cropFile");
+        const file = fileInput.files[0];
         if (!file) return alert("Please select a file");
 
         const formData = new FormData();
         formData.append("image", file);
-        formData.append("x", cropX.value);
-        formData.append("y", cropY.value);
-        formData.append("width", cropWidth.value);
-        formData.append("height", cropHeight.value);
+        formData.append("x", document.getElementById("cropX").value);
+        formData.append("y", document.getElementById("cropY").value);
+        formData.append("width", document.getElementById("cropWidth").value);
+        formData.append("height", document.getElementById("cropHeight").value);
 
         try {
             const res = await fetch(`${API_BASE}/ocr/crop`, {
@@ -164,8 +166,6 @@
             showResult("timingResult", { error: e.message }, true);
         }
     }
-
 </script>
-
 </body>
 </html>
