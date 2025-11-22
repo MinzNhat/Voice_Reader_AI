@@ -322,17 +322,6 @@ fun DocumentNoteDetailScreen(
     var content by remember { mutableStateOf("") }
     var showDeleteDialog by remember { mutableStateOf(false) }
 
-    if (showDeleteDialog && noteId != null) {
-        com.example.voicereaderapp.ui.livereader.overlay.note.ConfirmDeleteDialog(
-            onConfirm = {
-                noteViewModel.deleteNote(noteId)
-                showDeleteDialog = false
-                onBack()
-            },
-            onCancel = { showDeleteDialog = false }
-        )
-    }
-
     // Load note data if editing
     LaunchedEffect(noteId) {
         if (noteId != null) {
@@ -442,6 +431,18 @@ fun DocumentNoteDetailScreen(
             )
         }
     }
+
+    if (showDeleteDialog && noteId != null) {
+        com.example.voicereaderapp.ui.livereader.overlay.note.ConfirmDeleteDialog(
+            onConfirm = {
+                noteViewModel.deleteNote(noteId)
+                showDeleteDialog = false
+                onBack()
+            },
+            onCancel = { showDeleteDialog = false }
+        )
+    }
+
 }
 
 /**

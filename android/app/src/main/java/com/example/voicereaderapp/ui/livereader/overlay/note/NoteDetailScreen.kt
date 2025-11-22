@@ -31,16 +31,6 @@ fun NoteDetailScreen(
     var content by remember { mutableStateOf("") }
 
     var showDeleteDialog by remember { mutableStateOf(false) }
-    if (showDeleteDialog && noteId != null) {
-        ConfirmDeleteDialog(
-            onConfirm = {
-                noteViewModel.deleteNote(noteId)
-                showDeleteDialog = false
-                onBack()
-            },
-            onCancel = { showDeleteDialog = false }
-        )
-    }
 
 
     // Chỉ chạy một lần khi noteId thay đổi để load dữ liệu
@@ -131,5 +121,15 @@ fun NoteDetailScreen(
                     .weight(1f) // Chiếm hết không gian còn lại
             )
         }
+    }
+    if (showDeleteDialog && noteId != null) {
+        ConfirmDeleteDialog(
+            onConfirm = {
+                noteViewModel.deleteNote(noteId)
+                showDeleteDialog = false
+                onBack()
+            },
+            onCancel = { showDeleteDialog = false }
+        )
     }
 }

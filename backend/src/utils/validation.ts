@@ -23,3 +23,12 @@ export const pdfValidation = {
     language: Joi.string().default('vi'),
   }),
 };
+
+export const geminiValidation = {
+  summarize: Joi.object({
+    content: Joi.string().required().min(1).max(100000),
+    model: Joi.string().optional(),
+    maxTokens: Joi.number().integer().min(16).max(2000).optional(),
+    length: Joi.string().valid('short', 'medium', 'long').optional(),
+  }),
+};
