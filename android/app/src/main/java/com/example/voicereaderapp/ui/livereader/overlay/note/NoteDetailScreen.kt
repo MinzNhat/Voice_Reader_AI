@@ -1,5 +1,6 @@
 package com.example.voicereaderapp.ui.livereader.overlay.note
 
+import android.util.Log
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
@@ -72,6 +73,7 @@ fun NoteDetailScreen(
                 actions = {
                     // Nút Xóa (chỉ hiển thị khi đang sửa note đã có)
                     if (noteId != null) {
+                        Log.d("NoteViewModel", "Deleting note with ID: $noteId")
                         IconButton(onClick = {
                             showDeleteDialog = true
                         }) {

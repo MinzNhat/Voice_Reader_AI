@@ -126,7 +126,7 @@ function calculateTiming(text) {
     let currentTime = 0;
 
     words.forEach((word, index) => {
-        const duration = 300 + (word.length * 50);
+        const duration = 200 + (word.length * 30);
 
         timings.push({
             word: word,
@@ -140,6 +140,7 @@ function calculateTiming(text) {
 
     return timings;
 }
+
 
 /**
  * Delete file safely
