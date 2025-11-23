@@ -43,85 +43,82 @@ fun NoteListScreen(
     var renameTargetId by remember { mutableStateOf<Long?>(null) }
     var renameText by remember { mutableStateOf("") }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    // Delete confirmation dialog
+    if (deleteTargetId != null) {
+        ConfirmDeleteDialog(
+            onCancel = { deleteTargetId = null },
+            onConfirm = {
+                deleteTargetId?.let { onDeleteClick(it) }
+                deleteTargetId = null
+            }
+        )
+    }
 
-        // Rename dialog
-        if (renameTargetId != null) {
-            RenameNoteDialog(
-                currentTitle = renameText,
-                onDismiss = { renameTargetId = null },
-                onConfirm = { newTitle ->
-                    renameTargetId?.let { id ->
-                        onRenameClick?.invoke(id, newTitle)
-                    }
-                    renameTargetId = null
+    // Rename dialog
+    if (renameTargetId != null) {
+        RenameNoteDialog(
+            currentTitle = renameText,
+            onDismiss = { renameTargetId = null },
+            onConfirm = { newTitle ->
+                renameTargetId?.let { id ->
+                    onRenameClick?.invoke(id, newTitle)
                 }
-            )
-        }
+                renameTargetId = null
+            }
+        )
+    }
 
-        Scaffold(
-            topBar = {
-                TopAppBar(
-                    title = { Text(stringResource(R.string.all_notes)) },
-                    navigationIcon = {
-                        IconButton(onClick = onClose) {
-                            Icon(Icons.Default.Close, contentDescription = stringResource(R.string.close_notes))
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.all_notes)) },
+                navigationIcon = {
+                    IconButton(onClick = onClose) {
+                        Icon(Icons.Default.Close, contentDescription = stringResource(R.string.close_notes))
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
                 )
-            },
-            floatingActionButton = {
-                FloatingActionButton(
-                    onClick = onAddNewClick,
-                    shape = RoundedCornerShape(16.dp),
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_new_note))
-                }
-            }
-        ) { paddingValues ->
-            if (notes.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(paddingValues),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(stringResource(R.string.no_notes_yet))
-                }
-            } else {
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(paddingValues),
-                    contentPadding = PaddingValues(8.dp)
-                ) {
-                    items(notes, key = { it.id }) { note ->
-                        NoteListItem(
-                            note = note,
-                            onClick = { onNoteClick(note.id) },
-                            onDelete = { deleteTargetId = note.id },
-                            onRename = {
-                                renameTargetId = note.id
-                                renameText = note.title
-                            }
-                        )
-                    }
-                }
+            )
+        },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = onAddNewClick,
+                shape = RoundedCornerShape(16.dp),
+            ) {
+                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_new_note))
             }
         }
-
-        // Delete confirmation dialog
-        if (deleteTargetId != null) {
-            ConfirmDeleteDialog(
-                onCancel = { deleteTargetId = null },
-                onConfirm = {
-                    deleteTargetId?.let { onDeleteClick(it) }
-                    deleteTargetId = null
+    ) { paddingValues ->
+        if (notes.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(stringResource(R.string.no_notes_yet))
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues),
+                contentPadding = PaddingValues(8.dp)
+            ) {
+                items(notes, key = { it.id }) { note ->
+                    NoteListItem(
+                        note = note,
+                        onClick = { onNoteClick(note.id) },
+                        onDelete = { deleteTargetId = note.id },
+                        onRename = {
+                            renameTargetId = note.id
+                            renameText = note.title
+                        }
+                    )
                 }
-            )
+            }
         }
     }
 }
