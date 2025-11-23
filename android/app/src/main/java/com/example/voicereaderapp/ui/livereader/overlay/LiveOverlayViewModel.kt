@@ -79,6 +79,9 @@ class LiveOverlayViewModel @Inject constructor(
     private val _voiceConfig = MutableStateFlow(VoiceConfig.Male)
     val voiceConfig: StateFlow<VoiceConfig> = _voiceConfig
 
+    // Session management
+    private val playbackSessionId = AtomicLong(0)
+
     // Actual voice ID (e.g., "matt", "anna", "minseo")
     private val _selectedVoiceId = MutableStateFlow("matt")
     val selectedVoiceId: StateFlow<String> = _selectedVoiceId
@@ -217,25 +220,40 @@ class LiveOverlayViewModel @Inject constructor(
     }
 
     // ----------------------------         các hàm gọi từ UI          ----------------------------------
-    fun toggleReading(){
+    fun toggleReading() {
+        Log.d("LiveReader", _fullText.value)
         scope.launch {
-            if (_isReading.value) {
-                // Đang đọc -> Pause
+            // Trường hợp 1: Đang quét (Scanning) -> Người dùng muốn dừng quét
+            if (_isScanning.value && _isReading.value) {
+                Log.d("LiveReader", "User cancelled scanning.")
+                _isScanning.value = false // Cờ này false sẽ làm vòng lặp scan dừng lại
                 _isReading.value = false
-                delay(50) // delay 0.2s
-                collapseOverlay()
-                delay(200) // delay 0.2s
-                _currentIndex.value = -1
+                _fullText.value = ""
+                return@launch
+            }
+
+            // Trường hợp 2: Đang đọc (TTS playing) -> Pause
+            if (_isReading.value) {
+                _isReading.value = false
                 ttsRepository.pauseAudio()
-                isAutoScrolling = false
-            } else {
-                // Đang pause -> Resume
-                _isReading.value = true
-                delay(50) // delay 0.2s
-                collapseOverlay()
-                delay(200) // delay 0.2s
-                Log.d("LIVE_READING", "Resume reading")
-                startLiveReading()
+                Log.d("LiveReader", "Paused reading.")
+            }
+            // Trường hợp 3: Đang Pause/Idle
+            else {
+                if (_fullText.value.isNotEmpty()) {
+                    // Đã có text (đang pause) -> Resume
+                    _isReading.value = true
+                    collapseOverlay()
+                    Log.d("LiveReader", "Resuming playback.")
+                    // Nếu repo support resume thì tốt, không thì play lại từ text
+                    // Ở đây gọi playFullText để đơn giản hóa, logic resume sâu hơn nằm ở Repository
+                    playFullText(_fullText.value, resume = true)
+                } else {
+                    // Chưa có text -> Bắt đầu Scan toàn bộ
+                    Log.d("LiveReader", "Starting full scan.")
+                    collapseOverlay()
+                    startLiveReading() // Hàm này giờ sẽ chạy logic scan toàn bộ
+                }
             }
         }
     }
@@ -328,6 +346,7 @@ class LiveOverlayViewModel @Inject constructor(
 
     fun collapseOverlay() {
         _isExpanded.value = false
+        hideNoteOverlay()
         setOverlayInteractive(false)
     }
 
@@ -339,6 +358,13 @@ class LiveOverlayViewModel @Inject constructor(
 
     // ----------------------------------- implementation for live reader ocr --------------------------------------
 
+    // Trạng thái MỚI: Đang quét OCR (Scan mode)
+    private val _isScanning = MutableStateFlow(false)
+    val isScanning: StateFlow<Boolean> = _isScanning
+
+    // Words collected
+    private val _collectedWords = MutableStateFlow<List<OCRWord>>(emptyList())
+
     private var isAutoScrolling = false
     private var lastSegmentWords: List<OCRWord> = emptyList()
     private var globalWordIndex = 0 // Index highlight toàn cục
@@ -349,18 +375,19 @@ class LiveOverlayViewModel @Inject constructor(
     private val _currentLocalIndex = MutableStateFlow(-1)
     val currentLocalIndex: StateFlow<Int> = _currentLocalIndex
 
-    private var hasScrolledCurrentPage = false
-    private val playbackSessionId = AtomicLong(0)
-
+    val displayMetrics = context.resources.displayMetrics
+    val screenHeight = displayMetrics.heightPixels.toFloat()
 
     fun startLiveReading() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            _isReading.value = true
-            lastSegmentWords = emptyList()
+            _isScanning.value = true
+            _isReading.value = false
             _fullText.value = ""
-            isAutoScrolling = false
-            hasScrolledCurrentPage = false
-            captureAndProcess()
+            _currentIndex.value = 0
+            lastSegmentWords = emptyList()
+            collapseOverlay() // Thu gọn overlay để chụp ảnh
+
+            scanLoopRecursive()
         }
     }
 
@@ -371,64 +398,148 @@ class LiveOverlayViewModel @Inject constructor(
      * 3. Loại bỏ phần trùng lặp và nối phần còn lại.
      */
     @RequiresApi(Build.VERSION_CODES.R)
-    private fun captureAndProcess() {
-        val service = ScreenReaderAccessibilityService.instance ?: return
+    private fun scanLoopRecursive() {
+        // Kiểm tra cờ hủy
+        if (!_isScanning.value) return
 
-        service.captureScreen { bitmap ->
-            scope.launch {
-                var imageFile: File? = null
-                try {
-                    imageFile = saveBitmapToFile(bitmap)
-                    val result = ocrRepository.performOCR(imageFile)
+        val service = ScreenReaderAccessibilityService.instance
+        if (service == null) {
+            _isScanning.value = false
+            return
+        }
 
-                    if (result is Result.Success) {
-                        val rawWords = result.data.words
-                        val contentWords = rawWords.filter { it.bbox.y1 > 200 }
-
-                        // 1. Check trùng lặp toàn trang (Global Check)
-                        // Nếu 2 trang giống nhau > 75%, coi như chưa scroll được -> DỪNG
-                        if (isGlobalDuplicate(lastSegmentWords, contentWords)) {
-                            Log.d("LiveReader", "🛑 Global Duplicate detected (>75% match). Stopping.")
-                            _isReading.value = false
-                            ttsRepository.stopAudio()
-                            isAutoScrolling = false
-                            return@launch
-                        }
-
-                        // 2. Logic ghép văn bản "Hạng nặng"
-                        val uniqueWords = heavySmartMerge(lastSegmentWords, contentWords)
-
-                        lastSegmentWords = contentWords
-
-                        if (uniqueWords.isNotEmpty()) {
-                            _currentPageWords.value = contentWords
-
-                            val textSegment = uniqueWords.joinToString(" ") { it.text }
-                            val prefix = if (_fullText.value.isEmpty()) "" else " "
-                            _fullText.value += prefix + textSegment
-
-                            val textToSpeak = uniqueWords.joinToString(" ") { it.text }
-                            Log.d("LiveReader", "✅ Merge result: $textToSpeak")
-                            Log.d("LiveReader", "✅ Full text: ${_fullText.value}")
-
-                            playSegment(textToSpeak, contentWords, uniqueWords)
-
-                        } else {
-                            // Trường hợp uniqueWords rỗng (do merge phát hiện trùng lặp phần đuôi)
-                            Log.d("LiveReader", "⚠️ Merge result is empty (Overlapped). Stopping.")
-                            _isReading.value = false
-                            isAutoScrolling = false
-                        }
-                    }
-                } catch (e: Exception) {
-                    Log.e("LiveReader", "Error", e)
-                } finally {
-                    imageFile?.delete()
-                    bitmap.recycle()
-                }
+        // Delay nhẹ để UI ổn định sau khi cuộn hoặc thu gọn
+        scope.launch {
+            delay(1500)
+            service.captureScreen { bitmap ->
+                processBitmapForScan(bitmap)
             }
         }
     }
+
+    @RequiresApi(Build.VERSION_CODES.R)
+    private fun processBitmapForScan(bitmap: Bitmap) {
+        scope.launch {
+            var imageFile: File? = null
+            try {
+                imageFile = saveBitmapToFile(bitmap)
+                val result = ocrRepository.performOCR(imageFile)
+
+                if (result is Result.Success) {
+                    val rawWords = result.data.words
+                    // Lọc header/footer: chỉ lấy text từ y=150 trở xuống
+                    val contentWords = rawWords.filter { it.bbox.y1 > 200 && it.bbox.y3 < screenHeight*0.83 }
+
+                    // 1. Kiểm tra hết trang (Trùng lặp toàn cục)
+                    if (isGlobalDuplicate(lastSegmentWords, contentWords)) {
+                        Log.d("LiveReader", "🛑 Duplicate detected -> End of Page.")
+                        finishScanAndRead()
+                        return@launch
+                    }
+
+                    // 2. Ghép văn bản (Merge)
+                    val uniqueWords = findOverlapAndMerge(lastSegmentWords, contentWords)
+                    lastSegmentWords = contentWords
+
+                    if (uniqueWords.size < 4) {
+                        Log.d("LiveReader", "🛑 Too few new words found (${uniqueWords.size}). Assuming End of Page.")
+                        // (Tùy chọn) Vẫn nối nốt mấy chữ cuối này vào rồi dừng
+                        if (uniqueWords.isNotEmpty()) {
+                            val textSegment = uniqueWords.joinToString(" ") { it.text }
+                            _fullText.value += " " + textSegment
+                        }
+                        finishScanAndRead()
+                        return@launch
+                    }
+
+                    if (uniqueWords.isNotEmpty()) {
+                        val textSegment = uniqueWords.joinToString(" ") { it.text }
+                        val prefix = if (_fullText.value.isEmpty()) "" else " "
+                        _fullText.value += prefix + textSegment
+
+                        Log.d("LiveReader", "✅ Scanned: ${textSegment.take(30)}...")
+
+                        // 3. Cuộn trang
+                        val scrolled = performScroll()
+                        if (scrolled) {
+                            // Cuộn thành công -> Đệ quy quét tiếp
+                            scanLoopRecursive()
+                        } else {
+                            // Không cuộn được -> Hết trang
+                            finishScanAndRead()
+                        }
+                    } else {
+                        // Merge ra rỗng (trùng phần đuôi) -> Thử cuộn tiếp xem còn gì không
+                        Log.d("LiveReader", "⚠️ Merge empty. Forcing scroll.")
+                        if (performScroll()) {
+                            scanLoopRecursive()
+                        } else {
+                            finishScanAndRead()
+                        }
+                    }
+                } else {
+                    Log.e("LiveReader", "OCR Failed")
+                    finishScanAndRead() // Hoặc retry tùy logic
+                }
+            } catch (e: Exception) {
+                Log.e("LiveReader", "Scan Error", e)
+                finishScanAndRead()
+            } finally {
+                imageFile?.delete()
+                bitmap.recycle()
+            }
+        }
+    }
+
+    private fun finishScanAndRead() {
+        if (!_isScanning.value) return
+
+        _isScanning.value = false
+        Log.d("LiveReader", "🏁 Scan finished. Full text length: ${_fullText.value.length}")
+
+        if (_fullText.value.isNotBlank()) {
+            // Tự động đọc sau khi scan xong
+            playFullText(_fullText.value, resume = false)
+        }
+    }
+
+
+    private fun playFullText(text: String, resume: Boolean) {
+        _isReading.value = true
+        val currentSession = playbackSessionId.incrementAndGet()
+        Log.d("LiveReader", "▶️ Playing full text: ${text}")
+
+        // Hiển thị NoteOverlay để người dùng thấy text đã scan (tùy chọn)
+        showNoteOverlay()
+
+        scope.launch {
+            // Nếu resume và repo có hỗ trợ resume thông minh thì dùng, ở đây giả lập play lại
+            // Nếu muốn play lại từ đầu đoạn scan thì dùng text gốc
+            val result = ttsRepository.generateSpeech(text, _selectedVoiceId.value)
+
+            if (result is Result.Success) {
+                ttsRepository.playAudio(
+                    base64Audio = result.data,
+                    playbackSpeed = _speed.value,
+                    onProgress = { currentMs ->
+                        if (playbackSessionId.get() != currentSession) return@playAudio
+                        // Logic update highlight index nếu cần
+                        // _currentIndex.value = ...
+                    },
+                    onComplete = {
+                        if (playbackSessionId.get() == currentSession) {
+                            _isReading.value = false
+                            _currentIndex.value = 0
+                        }
+                    }
+                )
+            } else {
+                Log.e("LiveReader", "TTS Gen Failed")
+                _isReading.value = false
+            }
+        }
+    }
+
 
     // --- HEAVY LOGIC HELPERS ---
 
@@ -450,7 +561,7 @@ class LiveOverlayViewModel @Inject constructor(
 
         // [TĂNG ĐỘ NHẠY] Giảm ngưỡng xuống 0.6 (60%).
         // Nếu 2 trang giống nhau 60% (do OCR sai nhiều) -> Vẫn coi là trang cũ.
-        return similarity > 0.6
+        return similarity > 0.85
     }
 
     /**
@@ -458,70 +569,6 @@ class LiveOverlayViewModel @Inject constructor(
      * 1. Anchor cực lớn: 60% cuối trang cũ.
      * 2. Chấp nhận sai số lớn: Similarity > 0.55 (55%).
      */
-    private fun heavySmartMerge(oldWords: List<OCRWord>, newWords: List<OCRWord>): List<OCRWord> {
-        if (oldWords.isEmpty()) return newWords
-
-        // 1. Anchor Lớn: Lấy 50% số từ của trang cũ (hoặc ít nhất 20 từ)
-        // Lý do: Lấy càng nhiều từ thì xác suất trùng ngẫu nhiên càng thấp,
-        // cho phép ta giảm ngưỡng so sánh xuống thấp mà không sợ cắt nhầm.
-        val anchorSize = (oldWords.size * 0.6).toInt().coerceAtLeast(20)
-
-        // Lấy đoạn cuối
-        val anchorWords = oldWords.takeLast(anchorSize)
-        val anchorString = anchorWords.joinToString(" ") { normalize(it.text) }
-
-        // 2. Quét trên New Words (Quét 80% đầu trang mới)
-        val searchLimit = (newWords.size * 0.8).toInt()
-
-        var bestMatchIndex = -1
-        var bestMatchScore = 0.0
-
-        for (i in 0..searchLimit) {
-            if (i + anchorSize <= newWords.size) {
-                val candidateWords = newWords.subList(i, i + anchorSize)
-                val candidateString = candidateWords.joinToString(" ") { normalize(it.text) }
-
-                val similarity = calculateSimilarity(anchorString, candidateString)
-
-
-                if (similarity > 0.55) {
-                    if (similarity > bestMatchScore) {
-                        bestMatchScore = similarity
-                        bestMatchIndex = i
-                    }
-                }
-            }
-        }
-
-        // Nếu tìm thấy điểm cắt hợp lý
-        if (bestMatchIndex != -1) {
-            Log.d("Merge", "🔥 FOUND MATCH: Index $bestMatchIndex, Score ${(bestMatchScore * 100).toInt()}%")
-
-            val splitIndex = bestMatchIndex + anchorSize
-
-            // Kiểm tra biên: Nếu điểm cắt vượt quá độ dài (tức là trùng hoàn toàn đuôi)
-            if (splitIndex >= newWords.size) {
-                return emptyList()
-            }
-
-            // Cắt và trả về phần mới
-            return newWords.subList(splitIndex, newWords.size)
-        }
-
-        // 3. FALLBACK CUỐI CÙNG: So sánh toàn bộ
-        val oldFull = oldWords.joinToString("") { normalize(it.text) }
-        val newFull = newWords.joinToString("") { normalize(it.text) }
-        val globalSim = calculateSimilarity(oldFull, newFull)
-
-
-        if (globalSim > 0.54) {
-            Log.d("Merge", "⚠️ High global similarity ($globalSim) but no anchor match. Force duplicate detection.")
-            return emptyList()
-        }
-
-        Log.d("Merge", "⚠️ No overlap found. New Page.")
-        return newWords
-    }
 
     private fun normalize(s: String) = s.lowercase().replace(Regex("[^a-z0-9]"), "")
 
@@ -551,123 +598,90 @@ class LiveOverlayViewModel @Inject constructor(
         return costs[rhsLen]
     }
 
-    private suspend fun playSegment(
-        textToSpeak: String,
-        allWordsOnScreen: List<OCRWord>,
-        uniqueWordsToRead: List<OCRWord>
-    ) {
-        val voiceId = _selectedVoiceId.value
+    private fun findOverlapAndMerge(oldWords: List<OCRWord>, newWords: List<OCRWord>): List<OCRWord> {
+        if (oldWords.isEmpty()) return newWords
 
-        // 1. Tạo ID phiên mới. Các callback từ phiên cũ (TTS đang đọc dở) sẽ bị vô hiệu hóa.
-        val currentSession = playbackSessionId.incrementAndGet()
+        // Chuẩn hóa text để so sánh (chỉ lấy chữ cái thường và số)
+        fun simple(s: String) = s.lowercase().filter { it.isLetterOrDigit() }
 
-        // 2. Reset trạng thái cuộn cho trang MỚI này
-        hasScrolledCurrentPage = false
-        isAutoScrolling = false
+        val oldTextList = oldWords.map { simple(it.text) }
+        val newTextList = newWords.map { simple(it.text) }
 
-        if (textToSpeak.isBlank()) return
+        // Vùng tìm kiếm: Chỉ xét 50 từ cuối trang cũ và 50 từ đầu trang mới (Optimization)
+        val checkRange =  (oldTextList.size*0.5).toInt()
+        val oldTailStart = (oldTextList.size - checkRange).coerceAtLeast(0)
+        val oldTail = oldTextList.subList(oldTailStart, oldTextList.size)
 
-        val audioResult = ttsRepository.generateSpeech(textToSpeak, voiceId)
+        val newHeadEnd = checkRange.coerceAtMost(newTextList.size)
+        val newHead = newTextList.subList(0, newHeadEnd)
 
-        if (audioResult is Result.Success) {
-            val timingResult = ttsRepository.getWordTimings(textToSpeak)
-            val rawTimings = if (timingResult is Result.Success) timingResult.data.timings else emptyList()
+        // Tìm độ dài chồng lặp lớn nhất (Max Overlap)
+        var maxOverlapCount = 0
 
-            if (_isReading.value) {
-                ttsRepository.playAudio(
-                    base64Audio = audioResult.data,
-                    playbackSpeed = _speed.value,
-                    onProgress = { currentMs ->
-                        // [FIX] Kiểm tra Session ID: Nếu không khớp ID mới nhất -> Bỏ qua ngay lập tức
-                        if (playbackSessionId.get() != currentSession) return@playAudio
+        // Quét overlap: Giả sử overlap i từ.
+        // So sánh i từ cuối của Old với i từ đầu của New.
+        for (i in minOf(oldTail.size, newHead.size) downTo 3) { // Ít nhất trùng 3 từ liên tiếp mới tính
+            val subOld = oldTail.subList(oldTail.size - i, oldTail.size)
+            val subNew = newHead.subList(0, i)
 
-                        val calibratedMs = (currentMs * 1f).toLong()
-                        // 1. Tìm từ đang đọc trong danh sách uniqueWords
-                        val uniqueIndex = rawTimings.indexOfLast {
-                            calibratedMs >= it.startMs && calibratedMs < it.endMs
-                        }
-
-                        // 2. Map sang vị trí trên màn hình
-                        if (uniqueIndex != -1 && uniqueIndex < uniqueWordsToRead.size) {
-                            val wordBeingRead = uniqueWordsToRead[uniqueIndex]
-
-                            // Tìm vị trí thật trên màn hình để highlight
-                            val screenIndex = allWordsOnScreen.indexOfLast {
-                                it.bbox == wordBeingRead.bbox && it.text == wordBeingRead.text
-                            }
-
-                            if (screenIndex != -1) {
-                                _currentLocalIndex.value = screenIndex
-                                val currentY = allWordsOnScreen[screenIndex].bbox.y1
-
-                                checkAndTriggerScroll(currentY, screenIndex, allWordsOnScreen.size)
-                            }
-                        }
-                    },
-                    onComplete = {
-                        if (playbackSessionId.get() == currentSession) {
-                            _currentLocalIndex.value = -1
-                        }
-                    }
-                )
+            if (subOld == subNew) {
+                maxOverlapCount = i
+                break // Tìm thấy overlap lớn nhất rồi thì dừng ngay
             }
         }
-    }
 
-    private fun checkAndTriggerScroll(currentY: Float, currentIndex: Int, totalWords: Int) {
-        val screenHeight = context.resources.displayMetrics.heightPixels.toFloat()
-
-        if (!isAutoScrolling && !hasScrolledCurrentPage &&
-            currentIndex > (totalWords * 0.5) &&
-            currentY > (screenHeight * 0.5)) {
-
-            Log.d("LiveReader", "🎯 Triggering Scroll: Idx=$currentIndex/$totalWords, Y=$currentY")
-            performScroll(currentY)
+        if (maxOverlapCount > 0) {
+            Log.d("Merge", "🔥 CUT at index $maxOverlapCount (Matched words: ${newWords.take(maxOverlapCount).map { it.text }})")
+            // Cắt bỏ phần trùng ở đầu trang mới
+            return newWords.subList(maxOverlapCount, newWords.size)
         }
+
+        // FALLBACK: Nếu không tìm thấy overlap chính xác từng từ (do OCR sai 1-2 ký tự)
+        // Ta dùng Fuzzy Match cho cả đoạn chuỗi dài
+        val oldString = oldTail.joinToString("")
+        val newString = newHead.joinToString("")
+
+        // Logic "Lùi dần": Thử cắt dần chuỗi New để xem có khớp đuôi Old không
+        // (Đơn giản hóa: Nếu không khớp chính xác, ta thà lấy thừa một chút còn hơn mất chữ,
+        // hoặc trả về toàn bộ nếu tin rằng scroll đã đi qua trang mới hoàn toàn).
+
+        // Ở đây, với scrollRatio = 0.85f (rất lớn), khả năng cao là KHÔNG có trùng lặp
+        // hoặc trùng lặp rất ít. Nếu không bắt được overlap chính xác, ta trả về toàn bộ.
+        Log.d("Merge", "⚠️ No exact overlap found. Assuming continuous text.")
+        return newWords
     }
 
-    private fun performScroll(currentY: Float) {
-        val service = ScreenReaderAccessibilityService.instance ?: return
 
-        // Khóa ngay lập tức
-        hasScrolledCurrentPage = true
-        isAutoScrolling = true
+    private fun performScroll(): Boolean {
+        val service = ScreenReaderAccessibilityService.instance ?: return false
 
-        val displayMetrics = context.resources.displayMetrics
-        val screenHeight = displayMetrics.heightPixels.toFloat()
+//        val displayMetrics = context.resources.displayMetrics
+//        val screenHeight = displayMetrics.heightPixels.toFloat()
         val centerX = displayMetrics.widthPixels.toFloat() / 2f
 
-        // Vuốt từ 50% màn hình lên
-        val swipeStartY = screenHeight * 0.5f
+        // --- CẤU HÌNH ĐỘ SCROLL TẠI ĐÂY ---
+        // 0.75f = Cuộn đi 75% chiều cao màn hình.
+        // Giữ lại ~25% nội dung cũ để thuật toán heavySmartMerge tìm được điểm nối.
+        // Nếu thấy merge hay bị sai/mất chữ, hãy GIẢM số này xuống (vd: 0.6f).
+        // Nếu muốn quét nhanh hơn, hãy TĂNG số này lên (tối đa 0.85f).
+        val scrollRatio = 0.4f
 
-        // Đích đến: Đưa dòng chữ đang đọc lên vị trí cách top 200px
-        val targetDistance = (currentY - 500f).coerceAtLeast(0f)
-        var swipeEndY = swipeStartY - targetDistance
+        // Điểm bắt đầu vuốt (Gần đáy màn hình - khoảng 90%)
+        val swipeStartY = screenHeight * 0.6f
 
-        // Chặn biên
+        // Tính khoảng cách cần vuốt
+        val scrollDistance = screenHeight * scrollRatio
+
+        // Điểm kết thúc vuốt (Kéo ngón tay lên trên)
+        var swipeEndY = swipeStartY - scrollDistance
+
+
         if (swipeEndY < 100f) swipeEndY = 100f
 
-        if (swipeStartY - swipeEndY < 50f) {
-            Log.d("LiveReader", "🛑 Distance too small (End of Page?). Skip scroll.")
+        Log.d("LiveReader", "🔄 Performing Scroll: Ratio=$scrollRatio | $swipeStartY -> $swipeEndY")
 
-            scope.launch {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    delay(1000)
-                    captureAndProcess()
-                }
-            }
-            return
-        }
 
-        Log.d("LiveReader", "Scroling: $swipeStartY -> $swipeEndY")
-        service.performScroll(centerX, swipeStartY, swipeEndY)
-
-        scope.launch {
-            delay(1000)
-            if (_isReading.value && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                captureAndProcess()
-            }
-        }
+        return service.performScroll(centerX, swipeStartY, swipeEndY)
     }
 
     private suspend fun saveBitmapToFile(bitmap: Bitmap): File = withContext(Dispatchers.IO) {

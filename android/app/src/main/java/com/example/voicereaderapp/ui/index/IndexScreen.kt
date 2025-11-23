@@ -209,7 +209,7 @@ fun IndexScreen(
                     wasPermissionRequested = false
                     val hasPermission = Settings.canDrawOverlays(context)
                     if (hasPermission) {
-                        LiveOverlayService.start(context, "Live Reader đã được kích hoạt.")
+                        LiveOverlayService.start(context, "")
                         isLiveScanEnabled = true
                     }
                 }
