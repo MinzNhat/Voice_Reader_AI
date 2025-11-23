@@ -56,10 +56,10 @@ class ScreenReaderAccessibilityService : AccessibilityService() {
      * @param startY: Điểm bắt đầu vuốt (thường là gần cuối màn hình)
      * @param endY: Điểm kết thúc (thường là đầu màn hình để scroll xuống)
      */
-    fun performScroll(x: Float, startY: Float, endY: Float) {
+    fun performScroll(x: Float, startY: Float, endY: Float): Boolean {
         if (x < 0 || startY < 0 || endY < 0) {
             Log.e("AccessService", "❌ Tọa độ không hợp lệ: x=$x, y=$startY->$endY")
-            return
+            return false
         }
 
         val path = Path()
@@ -68,7 +68,7 @@ class ScreenReaderAccessibilityService : AccessibilityService() {
 
         val builder = GestureDescription.Builder()
 
-        val stroke = GestureDescription.StrokeDescription(path, 0, 1000)
+        val stroke = GestureDescription.StrokeDescription(path, 0, 500)
 
         builder.addStroke(stroke)
 
@@ -85,6 +85,7 @@ class ScreenReaderAccessibilityService : AccessibilityService() {
         }, null)
 
         Log.d("AccessService", "Gửi lệnh vuốt: Kết quả=$result")
+        return result
     }
 
     /**
