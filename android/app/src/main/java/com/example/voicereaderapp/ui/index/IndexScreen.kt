@@ -392,7 +392,7 @@ fun IndexScreen(
                                 }
 
                                 // BƯỚC 3: Nếu đủ cả 2 quyền -> Bật Service
-                                LiveOverlayService.start(context, "Live Reader kích hoạt")
+                                LiveOverlayService.start(context, "")
                                 isLiveScanEnabled = true
 
                             } else {
