@@ -35,3 +35,32 @@ Backend đóng vai trò là một **Proxy an toàn**, ẩn các API Key của b�
   * **UI Framework:** Jetpack Compose (Material 3)
   * **Kiến trúc:** Clean Architecture (MVVM-C, UseCase Pattern, Hilt DI)
   * **Networking:** Retrofit/OkHttp
+
+
+---
+
+## ⚠️ Lưu ý khi cài đặt & sử dụng (Important Setup Notes)
+
+**Tiếng Việt:**
+
+> **Trước khi cài đặt:**
+> • Vui lòng **tắt Play Protect** trong Google Play để tránh bị chặn khi cài app.
+>
+> **Sau khi cài đặt:**
+> • Mở *App Info* → bật **Allow Restricted Settings** để ứng dụng có thể hoạt động nền.
+> • Vào *Accessibility* → *Downloaded apps* → bật **quyền truy cập** cho ứng dụng.
+>
+> Do thời gian phát triển gấp rút, nhóm chưa thể hoàn thiện phần hướng dẫn người dùng như các ứng dụng thương mại. Rất mong ban tổ chức thông cảm.
+
+---
+
+**English:**
+
+> **Before installation:**
+> • Please **disable Play Protect** in Google Play to avoid installation blocking.
+>
+> **After installation:**
+> • Go to *App Info* → enable **Allow Restricted Settings** so the app can perform background features.
+> • Then open *Accessibility* → *Downloaded apps* → **enable accessibility permission** for the app.
+>
+> Due to a very tight development timeline, we could not fully implement user guidance features. We appreciate your understanding.
