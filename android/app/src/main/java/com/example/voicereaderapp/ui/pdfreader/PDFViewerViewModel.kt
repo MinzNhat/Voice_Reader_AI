@@ -16,6 +16,7 @@ import com.example.voicereaderapp.utils.Result
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.example.voicereaderapp.domain.model.ChatMessage
+import com.example.voicereaderapp.domain.usecase.IngestRagUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -78,7 +79,8 @@ class PDFViewerViewModel @Inject constructor(
     private val saveDocumentUseCase: SaveDocumentUseCase,
     private val getDocumentByIdUseCase: GetDocumentByIdUseCase,
     private val getVoiceSettingsUseCase: GetVoiceSettingsUseCase,
-    private val askRagUseCase: AskRagUseCase // UseCase để hỏi AI
+    private val askRagUseCase: AskRagUseCase, // UseCase để hỏi AI
+    private val ingestRagUseCase: IngestRagUseCase
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(PDFViewerUiState())
@@ -232,6 +234,7 @@ class PDFViewerViewModel @Inject constructor(
 
             when (val result = ocrRepository.performOCR(file)) {
                 is Result.Success -> {
+                    val extractedText = result.data.text
                     _uiState.value = _uiState.value.copy(
                         isOCRProcessing = false,
                         ocrText = result.data.text,
@@ -241,6 +244,15 @@ class PDFViewerViewModel @Inject constructor(
                     )
                     val filename = originalFilename ?: file.name
                     saveDocumentAfterOCR(filename, result.data.text)
+
+                    if (extractedText.isNotBlank()) {
+                        android.util.Log.d("RAG", "Import File: Bắt đầu nạp kiến thức...")
+                        launch {
+                            ingestRagUseCase(extractedText)
+                                .onSuccess { android.util.Log.d("RAG", "Import File: AI học xong!") }
+                                .onFailure { android.util.Log.e("RAG", "Import File: Lỗi nạp ${it.message}") }
+                        }
+                    }
                 }
                 is Result.Error -> {
                     _uiState.value = _uiState.value.copy(isOCRProcessing = false, error = result.exception.message)

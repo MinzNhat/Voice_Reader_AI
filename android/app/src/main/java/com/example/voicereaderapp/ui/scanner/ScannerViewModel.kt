@@ -53,6 +53,7 @@ class ScannerViewModel @Inject constructor(
     private val ttsRepository: TTSRepository,
     private val ingestRagUseCase: IngestRagUseCase
 ) : ViewModel() {
+
     private val _uiState = MutableStateFlow(ScannerUiState())
 
     /**
@@ -115,7 +116,10 @@ class ScannerViewModel @Inject constructor(
                 when (val ocrResult = ocrRepository.performOCR(imageFile)) {
                     is Result.Success -> {
                         val extractedText = ocrResult.data.text
-                        android.util.Log.d("ScannerViewModel", "OCR successful, extracted ${extractedText.length} characters")
+                        android.util.Log.d(
+                            "ScannerViewModel",
+                            "OCR successful, extracted ${extractedText.length} characters"
+                        )
 
                         _uiState.value = _uiState.value.copy(
                             isProcessing = false,
@@ -129,11 +133,9 @@ class ScannerViewModel @Inject constructor(
                         if (extractedText.isNotBlank()) {
                             android.util.Log.d("RAG", "Bắt đầu nạp kiến thức cho AI...")
                             // Chạy ingest song song, không cần chờ nó xong mới làm việc khác
-                            launch {
-                                ingestRagUseCase(extractedText)
-                                    .onSuccess { android.util.Log.d("RAG", "AI học xong!") }
-                                    .onFailure { android.util.Log.e("RAG", "Lỗi nạp: ${it.message}") }
-                            }
+                            ingestRagUseCase(extractedText)
+                                .onSuccess { android.util.Log.d("RAG", "AI học xong!") }
+                                .onFailure { android.util.Log.e("RAG", "Lỗi nạp: ${it.message}") }
                         }
 
                         // Step 3: Generate TTS audio automatically
@@ -141,6 +143,7 @@ class ScannerViewModel @Inject constructor(
                             generateSpeech(extractedText, documentId)
                         }
                     }
+
                     is Result.Error -> {
                         android.util.Log.e("ScannerViewModel", "OCR failed: ${ocrResult.exception.message}")
                         _uiState.value = _uiState.value.copy(
@@ -148,6 +151,7 @@ class ScannerViewModel @Inject constructor(
                             error = "OCR failed: ${ocrResult.exception.message}"
                         )
                     }
+
                     is Result.Loading -> {
                         // Already in loading state
                     }
@@ -240,6 +244,7 @@ class ScannerViewModel @Inject constructor(
 
                         // Note: Audio caching is handled by the reader screen when user plays it
                     }
+
                     is Result.Error -> {
                         android.util.Log.e("ScannerViewModel", "TTS failed: ${audioResult.exception.message}")
                         _uiState.value = _uiState.value.copy(
@@ -247,6 +252,7 @@ class ScannerViewModel @Inject constructor(
                             error = "TTS generation failed: ${audioResult.exception.message}"
                         )
                     }
+
                     is Result.Loading -> {
                         // Already in loading state
                     }
