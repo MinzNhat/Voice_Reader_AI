@@ -503,6 +503,29 @@ class LiveOverlayViewModel @Inject constructor(
         }
     }
 
+    fun resetText() {
+        scope.launch {
+            // 1. Dừng mọi hoạt động đang chạy
+            _isReading.value = false
+            _isScanning.value = false
+            ttsRepository.stopAudio()
+
+            // 2. Reset dữ liệu văn bản
+            _fullText.value = ""
+            _currentIndex.value = 0
+
+            // 3. QUAN TRỌNG: Reset bộ nhớ đệm của thuật toán Merge
+            // Nếu không reset cái này, lần scan tiếp theo sẽ bị so sánh với văn bản cũ -> Gây lỗi ghép sai.
+            lastSegmentWords = emptyList()
+            _collectedWords.value = emptyList()
+            _currentPageWords.value = emptyList()
+
+            // 4. Thu gọn overlay để sẵn sàng cho lần scan mới
+            collapseOverlay()
+
+            Log.d("LiveReader", "♻️ Reset text & state completed.")
+        }
+    }
 
     private fun playFullText(text: String, resume: Boolean) {
         _isReading.value = true
