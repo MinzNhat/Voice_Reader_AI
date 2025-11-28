@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -126,6 +127,33 @@ fun EdgeBarSettingsPanel(viewModel: LiveOverlayViewModel) {
                     modifier = Modifier.size(28.dp)
                 )
             }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp)) // Khoảng cách với nút Play
+
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            IconButton(
+                onClick = { viewModel.resetText() },
+                modifier = Modifier
+                    .size(48.dp) // Nhỏ hơn nút Play một chút
+                    .background(
+                        MaterialTheme.colorScheme.error, // Màu đỏ để cảnh báo nút xóa/reset
+                        CircleShape
+                    )
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Refresh,
+                    contentDescription = "Reset Text",
+                    tint = MaterialTheme.colorScheme.onError, // Màu trắng trên nền đỏ
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Reset",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurface
+            )
         }
 
         Spacer(modifier = Modifier.height(16.dp))
