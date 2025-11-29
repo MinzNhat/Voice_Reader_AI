@@ -724,46 +724,24 @@ app.post('/api/rag/ask', async (req, res) => {
 
 });
 
-app.post('/api/summary', upload.any(), async (req, res) => {
-    let filePath = null;
+app.post('/api/summary', async (req, res) => {
     try {
-        console.log("📝 Summarizing from uploaded image...");
+        console.log("Received summary request");
 
-        const imageFile = req.files?.find(f => f.fieldname === "image");
-        if (!imageFile) return res.status(400).json({ success: false, error: "No image file provided" });
+        const { text } = req.body;
+        if (!text || text.trim().length === 0) return res.status(400).json({ success: false, error: "No text provided" });
 
-        filePath = imageFile.path;
-        const imageBuffer = fs.readFileSync(filePath);
-        let format = "png";
-        if (imageFile.mimetype === "application/pdf") format = "pdf";
-        else if (imageFile.mimetype.includes("jpeg") || imageFile.mimetype.includes("jpg")) format = "jpg";
-
-        const ocrResponse = await axios.post(
-            process.env.NAVER_OCR_URL,
-            {
-                version: "V2",
-                requestId: `req_summary_${Date.now()}`,
-                timestamp: Date.now(),
-                images: [{ format: format, name: imageFile.originalname || "document", data: imageBuffer.toString("base64") }]
-            },
-            { headers: { "X-OCR-SECRET": process.env.NAVER_OCR_SECRET, "Content-Type": "application/json" } }
-        );
-
-        const normalized = normalizeOCRResponse(ocrResponse.data);
-        deleteFile(filePath);
-
-        const content = normalized.text;
-        if (!content || content.trim().length === 0) return res.status(400).json({ success: false, error: "OCR returned no text" });
+        const content = text;
 
         const systemInstruction = `
-            You are an intelligent OCR Text Summarizer specializing in mobile screen capture analysis. The content below was extracted from a screenshot and may include:
+            You are an intelligent OCR Text Summarizer specializing in mobile screen capture analysis. The content below may include:
             1. OCR errors (typos, bad line breaks).
-            2. UI/Navigation artifacts (menu names, app names, buttons, timestamp, navigation bar text).
+            2. UI/Navigation artifacts (menu names, app names, buttons, timestamps, navigation bar text).
 
             Your task is three-fold:
             1. Filter and Clean: Identify and ignore text clearly belonging to UI elements (e.g., 'Settings', 'Back', '10:30 AM', app names, navigation titles).
             2. Reconstruct: Correct OCR errors and restore the logical flow of the main body text.
-            3. Summarize: Summarize the clean, reconstructed main body text concisely, aiming for a length suitable for the specified maximum tokens.
+            3. Summarize: Summarize the clean, reconstructed main body text concisely.
 
             Output ONLY the final summary text, without any introductory phrases, commentary, or Markdown formatting.
         `;
@@ -771,14 +749,13 @@ app.post('/api/summary', upload.any(), async (req, res) => {
         const finalContent = `${systemInstruction}\n\n--- TEXT TO SUMMARIZE ---\n${content}`;
 
         const result = await llm.invoke(finalContent);
-        const summary = result.content;
+        const summary = result?.content || result?.output || "";
 
         console.log("✅ Summary generated");
-        res.json({ success: true, summary: summary, ocr: normalized });
+        res.json({ success: true, summary: summary, original: content });
 
     } catch (error) {
         console.error("❌ Summary Error:", error.response?.data || error.message || error);
-        if (filePath) deleteFile(filePath);
         res.status(500).json({ error: error.message || error });
     }
 });
